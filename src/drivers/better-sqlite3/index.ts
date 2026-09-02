@@ -3,9 +3,11 @@ import Sqlite from "better-sqlite3"
 import type {
   ClosableDatabase,
   Database,
+  SchemaDatabase,
   SqlParameter,
   TransactionalDatabase,
 } from "../../database.js"
+import { createSchema } from "../../schema.js"
 
 /**
  * `better-sqlite3`を利用するローカルSQLiteデータベース。
@@ -13,7 +15,7 @@ import type {
  * このdriverはリソースのcloseとcallbackベースのtransactionを提供する。
  */
 export interface BetterSqlite3Database
-  extends ClosableDatabase, TransactionalDatabase {}
+  extends ClosableDatabase, SchemaDatabase, TransactionalDatabase {}
 
 /**
  * optional peer dependencyの`better-sqlite3`を利用してSQLiteデータベースを開く。
@@ -26,7 +28,7 @@ export function createBetterSqlite3Database(
 ): BetterSqlite3Database {
   const handle = new Sqlite(filename)
 
-  const database: BetterSqlite3Database = {
+  const database = {
     async exec(sql) {
       handle.exec(sql)
     },
@@ -65,7 +67,9 @@ export function createBetterSqlite3Database(
         throw error
       }
     },
-  }
+  } as BetterSqlite3Database
+
+  database.schema = createSchema(database)
 
   return database
 }
