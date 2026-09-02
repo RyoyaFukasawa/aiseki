@@ -1,9 +1,11 @@
 import { execFileSync } from "node:child_process"
 import {
+  cp,
   mkdtemp,
   mkdir,
   readdir,
   rm,
+  symlink,
 } from "node:fs/promises"
 import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -80,20 +82,37 @@ describe("published package entrypoints", () => {
     const temporaryDirectory = await mkdtemp(
       join(tmpdir(), "aiseki-package-smoke-"),
     )
+    const sourceDirectory = join(temporaryDirectory, "source")
     const packageDirectory = join(temporaryDirectory, "package")
     const consumerDirectory = join(temporaryDirectory, "consumer")
 
     try {
+      await mkdir(sourceDirectory)
       await mkdir(packageDirectory)
       await mkdir(consumerDirectory)
-      await rm(resolve(process.cwd(), "dist"), {
+      for (const file of [
+        "README.md",
+        "package.json",
+        "tsconfig.build.json",
+        "tsconfig.json",
+      ]) {
+        await cp(resolve(process.cwd(), file), join(sourceDirectory, file))
+      }
+      await cp(resolve(process.cwd(), "bin"), join(sourceDirectory, "bin"), {
         recursive: true,
-        force: true,
       })
+      await cp(resolve(process.cwd(), "src"), join(sourceDirectory, "src"), {
+        recursive: true,
+      })
+      await symlink(
+        resolve(process.cwd(), "node_modules"),
+        join(sourceDirectory, "node_modules"),
+        "dir",
+      )
       execFileSync(
         "pnpm",
         ["pack", "--pack-destination", packageDirectory, "--silent"],
-        { cwd: process.cwd(), stdio: "ignore" },
+        { cwd: sourceDirectory, stdio: "ignore" },
       )
 
       const [archive] = (await readdir(packageDirectory)).filter((file) =>
