@@ -6,9 +6,31 @@
   "type": "module",
   "scripts": {
     "aiseki": "tsx src/cli/index.ts",
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./d1": {
+      "types": "./dist/drivers/d1/index.d.ts",
+      "import": "./dist/drivers/d1/index.js"
+    },
+    "./better-sqlite3": {
+      "types": "./dist/drivers/better-sqlite3/index.d.ts",
+      "import": "./dist/drivers/better-sqlite3/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "bin": {
+    "aiseki": "./bin/aiseki.mjs"
   },
   "packageManager": "pnpm@10.26.0",
   "peerDependencies": {
