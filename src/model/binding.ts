@@ -3,25 +3,24 @@ import type { SqlParameter } from "../database.js"
 import type { QueryBuilder } from "../query-builder.js"
 import type { ComparisonOperator } from "../query/grammar.js"
 import { validateIdentifier } from "../schema/grammar.js"
-import type { ModelDefinition } from "./definition.js"
+import {
+  Model,
+  type AnyModelConstructor,
+  type ModelConstructor,
+  type ModelInstance,
+} from "./model.js"
 
-export type ModelRow<
-  Definition extends ModelDefinition<any, any>,
-> = Definition extends ModelDefinition<infer Row, any> ? Row : never
+export type {
+  AnyModelConstructor,
+  ModelConstructor,
+  ModelInstance,
+} from "./model.js"
 
-export type ModelInstance<
-  Definition extends ModelDefinition<any, any>,
-> = Definition extends ModelDefinition<any, infer Instance> ? Instance : never
-
-export interface BoundModel<
-  Definition extends ModelDefinition<any, any>,
-> {
-  query(): ModelQuery<Definition>
+export type BoundModel<Constructor extends AnyModelConstructor> = Constructor & {
+  query(): ModelQuery<Constructor>
 }
 
-export interface ModelQuery<
-  Definition extends ModelDefinition<any, any>,
-> {
+export interface ModelQuery<Constructor extends AnyModelConstructor> {
   where(column: string, value: SqlParameter): this
   where(
     column: string,
@@ -31,54 +30,59 @@ export interface ModelQuery<
   orderBy(column: string, direction?: "asc" | "desc"): this
   limit(value: number): this
   offset(value: number): this
-  get(): Promise<ReadonlyArray<ModelInstance<Definition>>>
-  first(): Promise<ModelInstance<Definition> | null>
+  get(): Promise<ReadonlyArray<ModelInstance<Constructor>>>
+  first(): Promise<ModelInstance<Constructor> | null>
   update(values: Readonly<Record<string, SqlParameter>>): Promise<void>
   delete(): Promise<void>
 }
 
-export type ModelDefinitions = Readonly<
-  Record<string, ModelDefinition<any, any>>
+export type ModelConstructors = Readonly<
+  Record<string, AnyModelConstructor>
 >
 
-export type BoundModels<Definitions extends ModelDefinitions> = {
-  [Key in Extract<keyof Definitions, string>]: BoundModel<Definitions[Key]>
+export type BoundModels<Constructors extends ModelConstructors> = {
+  [Key in Extract<keyof Constructors, string>]: BoundModel<Constructors[Key]>
 }
 
-function assertModelDefinition(
+function invalidModelConstructor(key?: string): Error {
+  return new Error(
+    key === undefined
+      ? "Invalid model constructor"
+      : `Invalid model constructor for registry key "${key}"`,
+  )
+}
+
+function assertModelConstructor(
   value: unknown,
-  key: string,
-): asserts value is ModelDefinition<any, any> {
-  if (
-    typeof value !== "object"
-    || value === null
-    || !("table" in value)
-    || typeof value.table !== "string"
-    || !("hydrate" in value)
-    || typeof value.hydrate !== "function"
-  ) {
-    throw new Error(`Invalid model definition for registry key "${key}"`)
-  }
-
+  key?: string,
+): asserts value is AnyModelConstructor {
   try {
-    validateIdentifier(value.table)
+    if (
+      typeof value !== "function"
+      || !(value.prototype instanceof Model)
+      || typeof Reflect.get(value, "table") !== "string"
+    ) {
+      throw invalidModelConstructor(key)
+    }
+
+    validateIdentifier(Reflect.get(value, "table") as string)
   } catch {
-    throw new Error(`Invalid model definition for registry key "${key}"`)
+    throw invalidModelConstructor(key)
   }
 }
 
-class DefaultModelQuery<Row extends object, Instance extends object>
-  implements ModelQuery<ModelDefinition<Row, Instance>>
+class DefaultModelQuery<Constructor extends AnyModelConstructor>
+  implements ModelQuery<Constructor>
 {
-  readonly #builder: QueryBuilder<Row>
-  readonly #hydrate: (row: Row) => Instance
+  readonly #builder: QueryBuilder<Record<string, unknown>>
+  readonly #model: Constructor
 
   constructor(
-    builder: QueryBuilder<Row>,
-    hydrate: (row: Row) => Instance,
+    builder: QueryBuilder<Record<string, unknown>>,
+    model: Constructor,
   ) {
     this.#builder = builder
-    this.#hydrate = hydrate
+    this.#model = model
   }
 
   where(column: string, value: SqlParameter): this
@@ -120,14 +124,14 @@ class DefaultModelQuery<Row extends object, Instance extends object>
     return this
   }
 
-  async get(): Promise<ReadonlyArray<Instance>> {
+  async get(): Promise<ReadonlyArray<ModelInstance<Constructor>>> {
     const rows = await this.#builder.get()
-    return rows.map(this.#hydrate)
+    return rows.map((row) => new this.#model(row))
   }
 
-  async first(): Promise<Instance | null> {
+  async first(): Promise<ModelInstance<Constructor> | null> {
     const row = await this.#builder.first()
-    return row === null ? null : this.#hydrate(row)
+    return row === null ? null : new this.#model(row)
   }
 
   async update(
@@ -141,41 +145,48 @@ class DefaultModelQuery<Row extends object, Instance extends object>
   }
 }
 
-export function bindModel<Row extends object, Instance extends object>(
+export function bindModel<Constructor extends AnyModelConstructor>(
   database: AisekiDatabase,
-  definition: ModelDefinition<Row, Instance>,
-): BoundModel<ModelDefinition<Row, Instance>> {
-  return Object.freeze({
-    query() {
+  model: Constructor,
+): BoundModel<Constructor> {
+  assertModelConstructor(model)
+
+  const SourceModel = model as unknown as {
+    readonly table: string
+    new (...args: any[]): Model
+  }
+  const BoundModel = class extends SourceModel {
+    static query(): ModelQuery<Constructor> {
       return new DefaultModelQuery(
-        database.query<Row>(definition.table),
-        definition.hydrate,
+        database.query<Record<string, unknown>>(model.table),
+        BoundModel as unknown as Constructor,
       )
-    },
-  })
+    }
+  }
+
+  return Object.freeze(BoundModel) as BoundModel<Constructor>
 }
 
-export function bindModels<Definitions extends ModelDefinitions>(
+export function bindModels<Constructors extends ModelConstructors>(
   database: AisekiDatabase,
-  definitions: Definitions,
-): BoundModels<Definitions> {
-  const entries = Reflect.ownKeys(definitions).map((key) => {
+  constructors: Constructors,
+): BoundModels<Constructors> {
+  const entries = Reflect.ownKeys(constructors).map((key) => {
     if (typeof key !== "string") {
       throw new Error("Model registry keys must be strings")
     }
 
-    const descriptor = Object.getOwnPropertyDescriptor(definitions, key)
+    const descriptor = Object.getOwnPropertyDescriptor(constructors, key)
 
     if (!descriptor?.enumerable) {
       throw new Error(`Model registry key "${key}" must be enumerable`)
     }
 
-    const definition: unknown = Reflect.get(definitions, key)
-    assertModelDefinition(definition, key)
+    const model: unknown = Reflect.get(constructors, key)
+    assertModelConstructor(model, key)
 
-    return [key, database.model(definition)] as const
+    return [key, database.model(model)] as const
   })
-  const bound = Object.fromEntries(entries)
 
-  return bound as BoundModels<Definitions>
+  return Object.fromEntries(entries) as BoundModels<Constructors>
 }

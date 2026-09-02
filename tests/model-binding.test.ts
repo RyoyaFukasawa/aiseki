@@ -2,25 +2,53 @@ import { describe, expect, it } from "vitest"
 
 import { createDB } from "../src/client.js"
 import type { Database } from "../src/database.js"
-import { defineModel } from "../src/model/definition.js"
+import { Model } from "../src/model/model.js"
+import type {
+  BoundModel,
+  ModelConstructor,
+} from "../src/model/binding.js"
 
-interface UserRow {
-  id: number
-  email: string
+class User extends Model {
+  static readonly table = "users"
+  declare id: number
+  declare email: string
+  declare active: boolean
+
+  emailDomain(): string {
+    return this.email.split("@")[1] ?? ""
+  }
+
+  static modelName(): string {
+    return this.name
+  }
 }
 
-class User {
-  constructor(
-    readonly id: number,
-    readonly email: string,
-  ) {}
+function createDatabase(rows: ReadonlyArray<object>) {
+  const statements: Array<{ sql: string; parameters: readonly unknown[] }> = []
+  const database: Database = {
+    async exec() {},
+    async run(sql, parameters = []) {
+      statements.push({ sql, parameters })
+    },
+    async all<T extends object>(sql: string, parameters = []) {
+      statements.push({ sql, parameters })
+      return rows as ReadonlyArray<T>
+    },
+  }
+
+  return { database, statements }
 }
 
-describe("model binding", () => {
+describe("class-based model binding", () => {
+  it("exposes model constructor types", () => {
+    const constructor: ModelConstructor<User> = User
+
+    expect(constructor).toBe(User)
+  })
+
   it("does not expose partial projections on hydrated model queries", () => {
     function assertModelQueryTypes(database: Database) {
-      const definition = defineModel<UserRow>({ table: "users" })
-      const query = createDB(database).model(definition).query()
+      const query = createDB(database).model(User).query()
 
       // @ts-expect-error Model queries must hydrate complete model rows.
       query.select("id")
@@ -29,74 +57,67 @@ describe("model binding", () => {
     expect(assertModelQueryTypes).toBeTypeOf("function")
   })
 
-  it("defines a model without a database and hydrates query results", async () => {
-    const database: Database = {
-      async exec() {},
-      async run() {},
-      async all<T extends object>() {
-        return [{ id: 1, email: "a@example.com" }] as unknown as ReadonlyArray<T>
-      },
-    }
-    const DB = createDB(database)
-    const userDefinition = defineModel<UserRow>({ table: "users" })
-    const UserModel = DB.model(userDefinition)
-
-    const user: UserRow | null = await UserModel.query().where("id", 1).first()
-
-    expect(Object.isFrozen(UserModel)).toBe(true)
-    expect(user).toEqual({ id: 1, email: "a@example.com" })
-  })
-
-  it("supports an explicit hydrator without storing a database in the definition", async () => {
-    const database: Database = {
-      async exec() {},
-      async run() {},
-      async all<T extends object>() {
-        return [{ id: 1, email: "A@EXAMPLE.COM" }] as unknown as ReadonlyArray<T>
-      },
-    }
-    const DB = createDB(database)
-    const userDefinition = defineModel<UserRow, User>({
-      table: "users",
-      hydrate: (row) => new User(row.id, row.email.toLowerCase()),
-    })
-
-    expect(userDefinition).not.toHaveProperty("database")
-    const user: User | null = await DB.model(userDefinition).query().first()
-    expect(user).toEqual(new User(1, "a@example.com"))
-  })
-
-  it("hydrates every complete row and delegates writes", async () => {
-    const statements: Array<{ sql: string; parameters: readonly unknown[] }> = []
-    const database: Database = {
-      async exec() {},
-      async run(sql, parameters = []) {
-        statements.push({ sql, parameters })
-      },
-      async all<T extends object>() {
-        return [
-          { id: 1, email: "ONE@EXAMPLE.COM" },
-          { id: 2, email: "TWO@EXAMPLE.COM" },
-        ] as unknown as ReadonlyArray<T>
-      },
-    }
-    const definition = defineModel<UserRow, User>({
-      table: "users",
-      hydrate: (row) => new User(row.id, row.email.toLowerCase()),
-    })
-    const query = createDB(database).model(definition).query()
-
-    await expect(query.get()).resolves.toEqual([
-      new User(1, "one@example.com"),
-      new User(2, "two@example.com"),
+  it("hydrates fields into subclass instances with instance methods", async () => {
+    const recorded = createDatabase([
+      { id: 1, email: "a@example.com", active: true },
     ])
-    await query.where("id", ">", 0).update({ email: "new@example.com" })
+    const BoundUser = createDB(recorded.database).model(User)
+
+    const user: User | null = await BoundUser.query().where("id", 1).first()
+
+    expect(user).toBeInstanceOf(User)
+    expect(user).toBeInstanceOf(BoundUser)
+    expect(user?.id).toBe(1)
+    expect(user?.email).toBe("a@example.com")
+    expect(user?.active).toBe(true)
+    expect(user?.emailDomain()).toBe("example.com")
+  })
+
+  it("preserves source static methods on the bound model class", () => {
+    const BoundUser = createDB(createDatabase([]).database).model(User)
+    const typedBoundUser: BoundModel<typeof User> = BoundUser
+
+    expect(typedBoundUser.modelName()).toBe(BoundUser.name)
+    expect(BoundUser).not.toBe(User)
+    expect(Object.getPrototypeOf(BoundUser)).toBe(User)
+  })
+
+  it("adds a static query method only to the request-bound model", async () => {
+    const recorded = createDatabase([])
+    const BoundUser = createDB(recorded.database).model(User)
+
+    expect(User).not.toHaveProperty("query")
+    await BoundUser.query().where("active", true).get()
+
+    expect(recorded.statements).toEqual([
+      {
+        sql: 'select * from "users" where "active" = ?',
+        parameters: [true],
+      },
+    ])
+  })
+
+  it("hydrates every row and delegates writes through existing query behavior", async () => {
+    const recorded = createDatabase([
+      { id: 1, email: "one@example.com", active: true },
+      { id: 2, email: "two@example.com", active: false },
+    ])
+    const query = createDB(recorded.database).model(User).query()
+
+    const users = await query.orderBy("id", "desc").limit(2).offset(1).get()
+    await query.where("id", ">", 0).update({ active: false })
     await query.delete()
 
-    expect(statements).toEqual([
+    expect(users).toHaveLength(2)
+    expect(users.every((user) => user instanceof User)).toBe(true)
+    expect(recorded.statements).toEqual([
       {
-        sql: 'update "users" set "email" = ? where "id" > ?',
-        parameters: ["new@example.com", 0],
+        sql: 'select * from "users" order by "id" desc limit ? offset ?',
+        parameters: [2, 1],
+      },
+      {
+        sql: 'update "users" set "active" = ? where "id" > ?',
+        parameters: [false, 0],
       },
       {
         sql: 'delete from "users" where "id" > ?',
@@ -105,9 +126,13 @@ describe("model binding", () => {
     ])
   })
 
-  it("rejects invalid model table names", () => {
-    expect(() => defineModel<UserRow>({ table: "unsafe table" })).toThrow(
-      "Invalid identifier",
+  it("rejects invalid model classes when binding a single model", () => {
+    class UnsafeUser extends Model {
+      static readonly table = "unsafe table"
+    }
+
+    expect(() => createDB(createDatabase([]).database).model(UnsafeUser)).toThrow(
+      "Invalid model constructor",
     )
   })
 })

@@ -26,7 +26,14 @@ describe("request-scoped model context", () => {
     const first = createAisekiContext({ DB: createFakeD1([{ id: 1 }]) })
     const second = createAisekiContext({ DB: createFakeD1([{ id: 2 }]) })
 
-    await expect(first.User.query().first()).resolves.toEqual({ id: 1 })
-    await expect(second.User.query().first()).resolves.toEqual({ id: 2 })
+    const [firstUser, secondUser] = await Promise.all([
+      first.User.query().first(),
+      second.User.query().first(),
+    ])
+
+    expect(firstUser?.id).toBe(1)
+    expect(firstUser?.isFirstUser()).toBe(true)
+    expect(secondUser?.id).toBe(2)
+    expect(secondUser?.isFirstUser()).toBe(false)
   })
 })

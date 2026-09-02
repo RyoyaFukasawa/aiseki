@@ -4,9 +4,9 @@ import {
   bindModels,
   type BoundModel,
   type BoundModels,
-  type ModelDefinitions,
+  type ModelConstructors,
 } from "./model/binding.js"
-import type { ModelDefinition } from "./model/definition.js"
+import type { AnyModelConstructor } from "./model/model.js"
 import {
   createQueryBuilder,
   type QueryBuilder,
@@ -16,12 +16,12 @@ interface AisekiDatabaseMethods {
   query<Row extends object = Record<string, unknown>>(
     table: string,
   ): QueryBuilder<Row>
-  model<Row extends object, Instance extends object>(
-    definition: ModelDefinition<Row, Instance>,
-  ): BoundModel<ModelDefinition<Row, Instance>>
-  models<Definitions extends ModelDefinitions>(
-    definitions: Definitions,
-  ): BoundModels<Definitions>
+  model<Constructor extends AnyModelConstructor>(
+    model: Constructor,
+  ): BoundModel<Constructor>
+  models<Constructors extends ModelConstructors>(
+    constructors: Constructors,
+  ): BoundModels<Constructors>
 }
 
 export type AisekiDatabase<
@@ -36,13 +36,11 @@ export function createDB<Adapter extends Database>(
     query<Row extends object = Record<string, unknown>>(table: string) {
       return createQueryBuilder<Row>(database, table)
     },
-    model<Row extends object, Instance extends object>(
-      definition: ModelDefinition<Row, Instance>,
-    ) {
-      return bindModel(client, definition)
+    model<Constructor extends AnyModelConstructor>(model: Constructor) {
+      return bindModel(client, model)
     },
-    models<Definitions extends ModelDefinitions>(definitions: Definitions) {
-      return bindModels(client, definitions)
+    models<Constructors extends ModelConstructors>(constructors: Constructors) {
+      return bindModels(client, constructors)
     },
   }
   const boundMethods = new WeakMap<Function, Function>()

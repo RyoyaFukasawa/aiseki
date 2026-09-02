@@ -13,17 +13,15 @@ export {
   createQueryBuilder,
   type QueryBuilder,
 } from "./query-builder.js"
-export {
-  defineModel,
-  type ModelDefinition,
-} from "./model/definition.js"
+export { Model } from "./model/model.js"
 export type {
+  AnyModelConstructor,
   BoundModel,
   BoundModels,
-  ModelDefinitions,
+  ModelConstructor,
+  ModelConstructors,
   ModelInstance,
   ModelQuery,
-  ModelRow,
 } from "./model/binding.js"
 export {
   createSchema,

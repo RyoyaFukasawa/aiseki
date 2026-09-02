@@ -99,20 +99,26 @@ Use `DB.query().select(...)` for partial plain-row projections. Hydrated model
 queries intentionally select complete rows, so `User.query()` does not expose
 `select()` in this milestone.
 
-Models are defined once without a database connection and collected in one
-explicit registry:
+Models are classes with a table name and typed fields. Source model classes
+do not contain a database connection, so they can be collected once in an
+explicit registry and safely reused across requests:
 
 ```ts
-import { defineModel } from "aiseki"
+import { Model } from "aiseki"
 
-export const userDefinition = defineModel<{
-  id: number
-  email: string
-  active: boolean
-}>({ table: "users" })
+export class User extends Model {
+  static readonly table = "users"
+  declare id: number
+  declare email: string
+  declare active: boolean
 
-export const modelDefinitions = {
-  User: userDefinition,
+  emailDomain(): string {
+    return this.email.split("@")[1] ?? ""
+  }
+}
+
+export const models = {
+  User,
 } as const
 ```
 
@@ -125,7 +131,7 @@ src/
   models/
     user.ts
     order.ts
-    index.ts           # modelDefinitions registry
+    index.ts           # model class registry
   infrastructure/
     aiseki-context.ts  # request-scoped DB and model binding
   routes/
@@ -138,7 +144,7 @@ require Hono in the library:
 ```ts
 import { createDB } from "aiseki"
 import { createD1Database, type D1DatabaseLike } from "aiseki/d1"
-import { modelDefinitions } from "../models/index.js"
+import { models } from "../models/index.js"
 
 interface AisekiD1Env {
   DB: D1DatabaseLike
@@ -149,7 +155,7 @@ export function createAisekiContext(env: AisekiD1Env) {
 
   return {
     DB,
-    ...DB.models(modelDefinitions),
+    ...DB.models(models),
   }
 }
 ```
@@ -165,13 +171,25 @@ app.use("*", async (c, next) => {
 
 app.get("/users", async (c) => {
   const { User } = c.var.aiseki
-  return c.json(await User.query().where("active", true).get())
+  const users = await User.query().where("active", true).get()
+
+  return c.json(users.map((user) => ({
+    id: user.id,
+    email: user.email,
+    active: user.active,
+    emailDomain: user.emailDomain(),
+  })))
 })
 ```
 
-Adding a model changes its definition and the `modelDefinitions` registry only;
-the context factory and middleware remain unchanged. A global mutable API such
-as `User.setDatabase(DB)` is intentionally avoided because concurrent requests
+`DB.models()` returns request-bound subclasses. Their static `query()` method
+uses that request's database, and hydrated rows are real model instances, so
+custom instance methods remain available. The original model classes and
+registry are not mutated.
+
+Adding a model changes its class and the `models` registry only; the context
+factory and middleware remain unchanged. A global mutable API such as
+`User.setDatabase(DB)` is intentionally avoided because concurrent requests
 could overwrite each other's connection. Runtime filesystem discovery is also
 avoided because file access and dynamic imports differ across Workers, Bun,
 Node.js, and bundlers; the explicit registry stays portable and statically
