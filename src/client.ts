@@ -46,10 +46,28 @@ export function createDB<Adapter extends Database>(
     },
   }
   const boundMethods = new WeakMap<Function, Function>()
-  const target = Object.assign(
-    Object.create(Object.getPrototypeOf(database)) as object,
-    methods,
-  )
+  const target = Object.create(Object.getPrototypeOf(database)) as object
+
+  Object.defineProperties(target, {
+    query: {
+      configurable: false,
+      enumerable: true,
+      value: methods.query,
+      writable: false,
+    },
+    model: {
+      configurable: false,
+      enumerable: true,
+      value: methods.model,
+      writable: false,
+    },
+    models: {
+      configurable: false,
+      enumerable: true,
+      value: methods.models,
+      writable: false,
+    },
+  })
 
   client = new Proxy(target, {
     get(currentTarget, property) {
@@ -76,6 +94,20 @@ export function createDB<Adapter extends Database>(
     has(currentTarget, property) {
       return Reflect.has(currentTarget, property)
         || Reflect.has(database, property)
+    },
+    set(currentTarget, property, value) {
+      if (Object.prototype.hasOwnProperty.call(methods, property)) {
+        return Reflect.set(currentTarget, property, value, currentTarget)
+      }
+
+      return Reflect.set(database, property, value, database)
+    },
+    deleteProperty(currentTarget, property) {
+      if (Object.prototype.hasOwnProperty.call(methods, property)) {
+        return Reflect.deleteProperty(currentTarget, property)
+      }
+
+      return Reflect.deleteProperty(database, property)
     },
   }) as AisekiDatabase<Adapter>
 

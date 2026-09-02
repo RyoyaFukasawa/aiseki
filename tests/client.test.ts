@@ -3,6 +3,36 @@ import { describe, expect, it } from "vitest"
 import { createDB } from "../src/client.js"
 import type { Database } from "../src/database.js"
 
+type ReservedMethodName = "query" | "model" | "models"
+
+function createDatabaseWithReservedPrototypeCollision(
+  name: ReservedMethodName,
+): Database {
+  const prototype = {}
+  const descriptor: PropertyDescriptor = name === "model"
+    ? {
+        configurable: true,
+        value: "adapter model",
+        writable: false,
+      }
+    : {
+        configurable: true,
+        get() {
+          return `adapter ${name}`
+        },
+      }
+
+  Object.defineProperty(prototype, name, descriptor)
+
+  return Object.assign(Object.create(prototype) as object, {
+    async exec() {},
+    async run() {},
+    async all() {
+      return []
+    },
+  }) as Database
+}
+
 describe("Aiseki DB client", () => {
   it("adds query without changing the raw Database contract", async () => {
     const calls: string[] = []
@@ -41,6 +71,18 @@ describe("Aiseki DB client", () => {
     expect(DB).not.toBe(database)
   })
 
+  it.each<ReservedMethodName>(["query", "model", "models"])(
+    "installs its own %s method over an inherited adapter collision",
+    (name) => {
+      const database = createDatabaseWithReservedPrototypeCollision(name)
+      const DB = createDB(database)
+
+      expect(Object.hasOwn(DB, name)).toBe(true)
+      expect(Reflect.get(DB, name)).toBeTypeOf("function")
+      expect(Reflect.get(database, name)).toBe(`adapter ${name}`)
+    },
+  )
+
   it("preserves the adapter method receiver", async () => {
     const calls: string[] = []
     const database: Database & { calls: string[] } = {
@@ -63,6 +105,49 @@ describe("Aiseki DB client", () => {
     await DB.all("three")
 
     expect(calls).toEqual(["one", "two", "three"])
+  })
+
+  it("forwards property writes to the raw adapter with its receiver", () => {
+    type MutableDatabase = Database & {
+      backingState: string
+      state?: string
+    }
+    const database: MutableDatabase = {
+      backingState: "initial",
+      get state() {
+        return this.backingState
+      },
+      set state(value: string | undefined) {
+        this.backingState = value ?? "unset"
+      },
+      async exec() {},
+      async run() {},
+      async all() {
+        return []
+      },
+    }
+    const DB = createDB(database)
+
+    DB.state = "updated"
+
+    expect(database.state).toBe("updated")
+    expect(database.backingState).toBe("updated")
+  })
+
+  it("forwards property deletion to the raw adapter", () => {
+    const database: Database & { state?: string } = {
+      state: "initial",
+      async exec() {},
+      async run() {},
+      async all() {
+        return []
+      },
+    }
+    const DB = createDB(database)
+
+    expect(delete DB.state).toBe(true)
+    expect(Object.hasOwn(database, "state")).toBe(false)
+    expect("state" in DB).toBe(false)
   })
 
   it("wraps a frozen plain-object adapter without Proxy invariant errors", async () => {
