@@ -1,4 +1,9 @@
-import type { Database, TransactionalDatabase } from "./database.js"
+import type {
+  Database,
+  SchemaDatabase,
+  TransactionalDatabase,
+} from "./database.js"
+import { createSchema } from "./schema.js"
 
 const MIGRATIONS_TABLE = "aiseki_migrations"
 
@@ -12,10 +17,10 @@ export interface Migration {
   name: string
 
   /** スキーマ変更を適用する。 */
-  up(database: Database): Promise<void> | void
+  up(database: SchemaDatabase): Promise<void> | void
 
   /** スキーマ変更を元に戻す。 */
-  down(database: Database): Promise<void> | void
+  down(database: SchemaDatabase): Promise<void> | void
 }
 
 /**
@@ -110,11 +115,12 @@ export class Migrator {
     const batch = (batchRows[0]?.batch ?? 0) + 1
 
     return this.database.transaction(async (database) => {
+      const migrationDatabase = createMigrationDatabase(database)
       const appliedNamesInBatch: string[] = []
 
       for (const migration of pendingMigrations) {
-        await migration.up(database)
-        await database.run(
+        await migration.up(migrationDatabase)
+        await migrationDatabase.run(
           `insert into ${MIGRATIONS_TABLE} (name, batch) values (?, ?)`,
           [migration.name, batch],
         )
@@ -146,6 +152,7 @@ export class Migrator {
     this.assertKnownMigrations(latestBatch)
 
     return this.database.transaction(async (database) => {
+      const migrationDatabase = createMigrationDatabase(database)
       const rolledBackNames: string[] = []
 
       for (const record of latestBatch) {
@@ -155,8 +162,8 @@ export class Migrator {
           throw new Error(`Applied migration is not defined: ${record.name}`)
         }
 
-        await migration.down(database)
-        await database.run(
+        await migration.down(migrationDatabase)
+        await migrationDatabase.run(
           `delete from ${MIGRATIONS_TABLE} where id = ?`,
           [record.id],
         )
@@ -185,5 +192,16 @@ export class Migrator {
         throw new Error(`Applied migration is not defined: ${record.name}`)
       }
     }
+  }
+}
+
+function createMigrationDatabase(database: Database): SchemaDatabase {
+  const exec = database.exec.bind(database)
+
+  return {
+    exec,
+    run: database.run.bind(database),
+    all: database.all.bind(database),
+    schema: createSchema({ exec }),
   }
 }
