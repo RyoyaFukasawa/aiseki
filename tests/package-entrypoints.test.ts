@@ -86,6 +86,10 @@ describe("published package entrypoints", () => {
     try {
       await mkdir(packageDirectory)
       await mkdir(consumerDirectory)
+      await rm(resolve(process.cwd(), "dist"), {
+        recursive: true,
+        force: true,
+      })
       execFileSync(
         "pnpm",
         ["pack", "--pack-destination", packageDirectory, "--silent"],
