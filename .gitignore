@@ -4,3 +4,4 @@ coverage/
 *.db
 *.db-*
 .DS_Store
+.worktrees/
