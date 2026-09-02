@@ -1,0 +1,28 @@
+{
+  "name": "aiseki",
+  "version": "0.0.0",
+  "description": "A TypeScript ORM where objects and relational data share a table.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "packageManager": "pnpm@10.26.0",
+  "peerDependencies": {
+    "better-sqlite3": "^13.0.3"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^24.3.0",
+    "better-sqlite3": "^13.0.3",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
