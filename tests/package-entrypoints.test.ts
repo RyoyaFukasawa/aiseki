@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
-import { describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it } from "vitest"
 
 function readPackage() {
   return JSON.parse(
@@ -15,6 +15,15 @@ function readPackage() {
 }
 
 describe("published package entrypoints", () => {
+  beforeAll(() => {
+    if (!existsSync(resolve(process.cwd(), "dist/index.js"))) {
+      execFileSync("pnpm", ["run", "build"], {
+        cwd: process.cwd(),
+        stdio: "inherit",
+      })
+    }
+  })
+
   it("declares runtime-neutral and driver exports with built output", () => {
     const root = readPackage()
 
