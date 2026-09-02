@@ -6,6 +6,26 @@ export type {
   TransactionalDatabase,
 } from "./database.js"
 export {
+  createDB,
+  type AisekiDatabase,
+} from "./client.js"
+export {
+  createQueryBuilder,
+  type QueryBuilder,
+} from "./query-builder.js"
+export {
+  defineModel,
+  type ModelDefinition,
+} from "./model/definition.js"
+export type {
+  BoundModel,
+  BoundModels,
+  ModelDefinitions,
+  ModelInstance,
+  ModelQuery,
+  ModelRow,
+} from "./model/binding.js"
+export {
   createSchema,
   type ColumnBuilder,
   type DefaultValue,

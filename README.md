@@ -12,9 +12,9 @@ aiseki/<driver>            runtime-specific database drivers
 ```
 
 The project is currently in the foundation phase. The current milestone includes
-the runtime-neutral database boundary, Schema Builder, migrations, and the
-migration CLI. Query Builder, Model, Relation, Hono integration, and Better
-Auth integration are planned for later milestones.
+the runtime-neutral database boundary, Query Builder, request-scoped Model
+binding, Schema Builder, migrations, and the migration CLI. Relation, direct
+Hono integration, and Better Auth integration are planned for later milestones.
 
 ## Runtime-neutral database boundary
 
@@ -77,6 +77,101 @@ const database = createD1Database(env.DB)
 ```
 
 The D1 adapter depends only on the structural shape of the D1 binding, so Aiseki does not require Hono or `@cloudflare/workers-types` at runtime. Other runtimes can provide their own adapter by implementing `Database`.
+
+## Query Builder and request-scoped models
+
+Wrap any raw `Database` adapter with `createDB()` to add the runtime-neutral
+Query Builder. `DB.query()` returns plain rows and binds every value as a SQL
+parameter:
+
+```ts
+import { createDB } from "aiseki"
+import { createD1Database } from "aiseki/d1"
+
+const DB = createDB(createD1Database(env.DB))
+const user = await DB
+  .query<{ id: number; email: string }>("users")
+  .where("email", email)
+  .first()
+```
+
+Models are defined once without a database connection and collected in one
+explicit registry:
+
+```ts
+import { defineModel } from "aiseki"
+
+export const userDefinition = defineModel<{
+  id: number
+  email: string
+  active: boolean
+}>({ table: "users" })
+
+export const modelDefinitions = {
+  User: userDefinition,
+} as const
+```
+
+An application context factory binds the whole registry to the database for
+the current request. A typical application layout keeps definitions,
+infrastructure, and routes separate:
+
+```txt
+src/
+  models/
+    user.ts
+    order.ts
+    index.ts           # modelDefinitions registry
+  infrastructure/
+    aiseki-context.ts  # request-scoped DB and model binding
+  routes/
+    users.ts
+```
+
+The context factory depends only on Aiseki's structural D1 type, so it does not
+require Hono in the library:
+
+```ts
+import { createDB } from "aiseki"
+import { createD1Database, type D1DatabaseLike } from "aiseki/d1"
+import { modelDefinitions } from "../models/index.js"
+
+interface AisekiD1Env {
+  DB: D1DatabaseLike
+}
+
+export function createAisekiContext(env: AisekiD1Env) {
+  const DB = createDB(createD1Database(env.DB))
+
+  return {
+    DB,
+    ...DB.models(modelDefinitions),
+  }
+}
+```
+
+The Hono application can create that context once per request and expose it
+through `c.var`:
+
+```ts
+app.use("*", async (c, next) => {
+  c.set("aiseki", createAisekiContext(c.env))
+  await next()
+})
+
+app.get("/users", async (c) => {
+  const { User } = c.var.aiseki
+  return c.json(await User.query().where("active", true).get())
+})
+```
+
+Adding a model changes its definition and the `modelDefinitions` registry only;
+the context factory and middleware remain unchanged. A global mutable API such
+as `User.setDatabase(DB)` is intentionally avoided because concurrent requests
+could overwrite each other's connection. Runtime filesystem discovery is also
+avoided because file access and dynamic imports differ across Workers, Bun,
+Node.js, and bundlers; the explicit registry stays portable and statically
+typed.
 
 ## Migrations and Schema Builder
 
