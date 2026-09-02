@@ -42,6 +42,17 @@ export interface Database {
 }
 
 /**
+ * Schema Builderを公開するDatabase境界。
+ *
+ * 既存のraw SQL専用adapterとの互換性を保つため、`Database`自体には
+ * `schema`を必須にせず、この拡張interfaceをmigration callbackと
+ * schema対応adapterで利用する。
+ */
+export interface SchemaDatabase extends Database {
+  schema: import("./schema.js").Schema
+}
+
+/**
  * 明示的なcloseを提供するランタイム向けの任意のデータベース機能。
  */
 export interface ClosableDatabase extends Database {
