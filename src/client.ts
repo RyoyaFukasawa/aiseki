@@ -12,7 +12,7 @@ import {
   type QueryBuilder,
 } from "./query-builder.js"
 
-export interface AisekiDatabase extends Database {
+interface AisekiDatabaseMethods {
   query<Row extends object = Record<string, unknown>>(
     table: string,
   ): QueryBuilder<Row>
@@ -24,11 +24,15 @@ export interface AisekiDatabase extends Database {
   ): BoundModels<Definitions>
 }
 
-export function createDB(database: Database): AisekiDatabase {
-  const client: AisekiDatabase = {
-    exec: database.exec.bind(database),
-    run: database.run.bind(database),
-    all: database.all.bind(database),
+export type AisekiDatabase<
+  Adapter extends Database = Database,
+> = Adapter & AisekiDatabaseMethods
+
+export function createDB<Adapter extends Database>(
+  database: Adapter,
+): AisekiDatabase<Adapter> {
+  let client: AisekiDatabase<Adapter>
+  const methods: AisekiDatabaseMethods = {
     query<Row extends object = Record<string, unknown>>(table: string) {
       return createQueryBuilder<Row>(database, table)
     },
@@ -41,6 +45,35 @@ export function createDB(database: Database): AisekiDatabase {
       return bindModels(client, definitions)
     },
   }
+  const boundMethods = new WeakMap<Function, Function>()
+
+  client = new Proxy(database, {
+    get(target, property) {
+      if (Object.prototype.hasOwnProperty.call(methods, property)) {
+        return Reflect.get(methods, property, methods)
+      }
+
+      const value = Reflect.get(target, property, target)
+
+      if (typeof value !== "function") {
+        return value
+      }
+
+      const existing = boundMethods.get(value)
+
+      if (existing) {
+        return existing
+      }
+
+      const bound = value.bind(target)
+      boundMethods.set(value, bound)
+      return bound
+    },
+    has(target, property) {
+      return Object.prototype.hasOwnProperty.call(methods, property)
+        || Reflect.has(target, property)
+    },
+  }) as AisekiDatabase<Adapter>
 
   return client
 }

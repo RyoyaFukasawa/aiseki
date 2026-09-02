@@ -95,6 +95,10 @@ const user = await DB
   .first()
 ```
 
+Use `DB.query().select(...)` for partial plain-row projections. Hydrated model
+queries intentionally select complete rows, so `User.query()` does not expose
+`select()` in this milestone.
+
 Models are defined once without a database connection and collected in one
 explicit registry:
 

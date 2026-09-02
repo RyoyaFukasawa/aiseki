@@ -105,4 +105,11 @@ describe("query grammar", () => {
       parameters: [],
     })
   })
+
+  it("compiles offset-only selects with SQLite's unlimited limit", () => {
+    expect(compileSelect({ table: "users", offset: 2 })).toEqual({
+      sql: 'select * from "users" limit -1 offset ?',
+      parameters: [2],
+    })
+  })
 })

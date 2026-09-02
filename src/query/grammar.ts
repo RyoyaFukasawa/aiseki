@@ -117,6 +117,11 @@ export function compileSelect(query: SelectQuery): CompiledQuery {
 
   if (query.offset !== undefined) {
     assertNonNegativeInteger(query.offset, "Offset")
+
+    if (query.limit === undefined) {
+      sql += " limit -1"
+    }
+
     sql += " offset ?"
     parameters.push(query.offset)
   }

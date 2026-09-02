@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { createDB } from "../src/client.js"
 import type { Database } from "../src/database.js"
+import type { ModelDefinitions } from "../src/model/binding.js"
 import { defineModel } from "../src/model/definition.js"
 
 interface UserRow {
@@ -83,5 +84,47 @@ describe("model registry", () => {
     expect(definitions).toEqual({
       User: expect.objectContaining({ table: "users" }),
     })
+  })
+
+  it("rejects every malformed registry value at bind time", () => {
+    const definitions = {
+      User: defineModel<UserRow>({ table: "users" }),
+      Broken: { table: "orders" },
+    } as unknown as ModelDefinitions
+    const DB = createDB(createRecordingDatabase([]).database)
+
+    expect(() => DB.models(definitions)).toThrow(
+      'Invalid model definition for registry key "Broken"',
+    )
+  })
+
+  it("rejects symbol and non-enumerable own registry keys", () => {
+    const symbolKey = Symbol("Hidden")
+    const symbolDefinitions = {
+      User: defineModel<UserRow>({ table: "users" }),
+      [symbolKey]: defineModel<OrderRow>({ table: "orders" }),
+    }
+    const nonEnumerableDefinitions = Object.defineProperty({}, "User", {
+      configurable: true,
+      enumerable: false,
+      value: defineModel<UserRow>({ table: "users" }),
+    }) as { User: typeof modelDefinitions.User }
+    const DB = createDB(createRecordingDatabase([]).database)
+
+    expect(() => DB.models(symbolDefinitions)).toThrow(
+      "Model registry keys must be strings",
+    )
+    expect(() => DB.models(nonEnumerableDefinitions)).toThrow(
+      'Model registry key "User" must be enumerable',
+    )
+  })
+
+  it("preserves arbitrary own enumerable string keys", () => {
+    const definitions = {
+      "User model": defineModel<UserRow>({ table: "users" }),
+    } as const
+    const DB = createDB(createRecordingDatabase([]).database)
+
+    expect(Object.keys(DB.models(definitions))).toEqual(["User model"])
   })
 })

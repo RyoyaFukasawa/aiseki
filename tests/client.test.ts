@@ -64,4 +64,34 @@ describe("Aiseki DB client", () => {
 
     expect(calls).toEqual(["one", "two", "three"])
   })
+
+  it("preserves concrete receiver-sensitive adapter capabilities", async () => {
+    class ConcreteDatabase implements Database {
+      readonly #events: string[] = []
+
+      async exec(sql: string) {
+        this.#events.push(`exec:${sql}`)
+      }
+
+      async run(sql: string) {
+        this.#events.push(`run:${sql}`)
+      }
+
+      async all<T extends object>(sql: string) {
+        this.#events.push(`all:${sql}`)
+        return [] as ReadonlyArray<T>
+      }
+
+      events() {
+        return this.#events
+      }
+    }
+
+    const database = new ConcreteDatabase()
+    const DB = createDB(database)
+
+    await DB.exec("one")
+    expect(DB.events()).toEqual(["exec:one"])
+    expect(database).not.toHaveProperty("query")
+  })
 })

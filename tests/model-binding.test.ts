@@ -17,6 +17,18 @@ class User {
 }
 
 describe("model binding", () => {
+  it("does not expose partial projections on hydrated model queries", () => {
+    function assertModelQueryTypes(database: Database) {
+      const definition = defineModel<UserRow>({ table: "users" })
+      const query = createDB(database).model(definition).query()
+
+      // @ts-expect-error Model queries must hydrate complete model rows.
+      query.select("id")
+    }
+
+    expect(assertModelQueryTypes).toBeTypeOf("function")
+  })
+
   it("defines a model without a database and hydrates query results", async () => {
     const database: Database = {
       async exec() {},
@@ -54,7 +66,7 @@ describe("model binding", () => {
     expect(user).toEqual(new User(1, "a@example.com"))
   })
 
-  it("hydrates every selected row and delegates writes", async () => {
+  it("hydrates every complete row and delegates writes", async () => {
     const statements: Array<{ sql: string; parameters: readonly unknown[] }> = []
     const database: Database = {
       async exec() {},
@@ -74,7 +86,7 @@ describe("model binding", () => {
     })
     const query = createDB(database).model(definition).query()
 
-    await expect(query.select("id", "email").get()).resolves.toEqual([
+    await expect(query.get()).resolves.toEqual([
       new User(1, "one@example.com"),
       new User(2, "two@example.com"),
     ])

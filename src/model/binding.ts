@@ -2,6 +2,7 @@ import type { AisekiDatabase } from "../client.js"
 import type { SqlParameter } from "../database.js"
 import type { QueryBuilder } from "../query-builder.js"
 import type { ComparisonOperator } from "../query/grammar.js"
+import { validateIdentifier } from "../schema/grammar.js"
 import type { ModelDefinition } from "./definition.js"
 
 export type ModelRow<
@@ -21,7 +22,6 @@ export interface BoundModel<
 export interface ModelQuery<
   Definition extends ModelDefinition<any, any>,
 > {
-  select(...columns: readonly string[]): this
   where(column: string, value: SqlParameter): this
   where(
     column: string,
@@ -42,7 +42,29 @@ export type ModelDefinitions = Readonly<
 >
 
 export type BoundModels<Definitions extends ModelDefinitions> = {
-  [Key in keyof Definitions]: BoundModel<Definitions[Key]>
+  [Key in Extract<keyof Definitions, string>]: BoundModel<Definitions[Key]>
+}
+
+function assertModelDefinition(
+  value: unknown,
+  key: string,
+): asserts value is ModelDefinition<any, any> {
+  if (
+    typeof value !== "object"
+    || value === null
+    || !("table" in value)
+    || typeof value.table !== "string"
+    || !("hydrate" in value)
+    || typeof value.hydrate !== "function"
+  ) {
+    throw new Error(`Invalid model definition for registry key "${key}"`)
+  }
+
+  try {
+    validateIdentifier(value.table)
+  } catch {
+    throw new Error(`Invalid model definition for registry key "${key}"`)
+  }
 }
 
 class DefaultModelQuery<Row extends object, Instance extends object>
@@ -57,11 +79,6 @@ class DefaultModelQuery<Row extends object, Instance extends object>
   ) {
     this.#builder = builder
     this.#hydrate = hydrate
-  }
-
-  select(...columns: readonly string[]): this {
-    this.#builder.select(...columns)
-    return this
   }
 
   where(column: string, value: SqlParameter): this
@@ -142,12 +159,23 @@ export function bindModels<Definitions extends ModelDefinitions>(
   database: AisekiDatabase,
   definitions: Definitions,
 ): BoundModels<Definitions> {
-  const bound = Object.fromEntries(
-    Object.entries(definitions).map(([key, definition]) => [
-      key,
-      database.model(definition),
-    ]),
-  )
+  const entries = Reflect.ownKeys(definitions).map((key) => {
+    if (typeof key !== "string") {
+      throw new Error("Model registry keys must be strings")
+    }
+
+    const descriptor = Object.getOwnPropertyDescriptor(definitions, key)
+
+    if (!descriptor?.enumerable) {
+      throw new Error(`Model registry key "${key}" must be enumerable`)
+    }
+
+    const definition: unknown = Reflect.get(definitions, key)
+    assertModelDefinition(definition, key)
+
+    return [key, database.model(definition)] as const
+  })
+  const bound = Object.fromEntries(entries)
 
   return bound as BoundModels<Definitions>
 }
