@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import type { Database, TransactionalDatabase } from "../src/database.js"
-import { Migrator, type Migration } from "../src/migrations.js"
+import {
+  defineMigrate,
+  Migrator,
+  type Migration,
+} from "../src/migrations.js"
 import { createBetterSqlite3Database } from "../src/drivers/better-sqlite3/index.js"
 
 const migrations = [
@@ -30,6 +34,16 @@ const migrations = [
 ] satisfies readonly Migration[]
 
 describe("Migrator", () => {
+  it("returns migration definitions from defineMigrate", () => {
+    const migration = {
+      name: "001_create_users",
+      up() {},
+      down() {},
+    } satisfies Migration
+
+    expect(defineMigrate(migration)).toBe(migration)
+  })
+
   it("delegates migration atomicity to the database adapter", async () => {
     let transactionCalls = 0
     const database: TransactionalDatabase = {

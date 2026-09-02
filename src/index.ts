@@ -4,4 +4,12 @@ export type {
   SqlParameter,
   TransactionalDatabase,
 } from "./database.js"
-export { Migrator, type Migration } from "./migrations.js"
+export {
+  defineMigrate,
+  Migrator,
+  type Migration,
+} from "./migrations.js"
+export {
+  defineConfig,
+  type AisekiConfig,
+} from "./cli/config.js"

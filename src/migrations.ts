@@ -18,6 +18,18 @@ export interface Migration {
   down(database: Database): Promise<void> | void
 }
 
+/**
+ * migration定義を型付きで宣言するためのhelper。
+ *
+ * 実行時には受け取った定義をそのまま返す。実際の検証は`Migrator`が行う。
+ *
+ * @param migration migrationの定義。
+ * @returns 受け取ったmigration定義。
+ */
+export function defineMigrate<T extends Migration>(migration: T): T {
+  return migration
+}
+
 interface MigrationRecord {
   id: number
   name: string

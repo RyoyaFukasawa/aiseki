@@ -71,12 +71,11 @@ The D1 adapter depends only on the structural shape of the D1 binding, so Aiseki
 Migrations are TypeScript values with explicit `up` and `down` functions. `migrate()` applies pending migrations in declaration order as one batch. `rollback()` reverts the latest batch in reverse order.
 
 ```ts
-import type { Migration } from "aiseki"
-import { Migrator } from "aiseki"
+import { defineMigrate, Migrator } from "aiseki"
 import { createBetterSqlite3Database } from "aiseki/better-sqlite3"
 
 const migrations = [
-  {
+  defineMigrate({
     name: "001_create_users",
     async up(database) {
       await database.exec(
@@ -86,8 +85,8 @@ const migrations = [
     async down(database) {
       await database.exec("drop table users")
     },
-  },
-] satisfies readonly Migration[]
+  }),
+]
 
 const database = createBetterSqlite3Database(":memory:")
 const migrator = new Migrator(database, migrations)
@@ -98,6 +97,37 @@ await database.close()
 ```
 
 `Migrator` requires a `TransactionalDatabase`, so the current migration runner works with adapters that provide atomic transactions. The Schema Builder is intentionally not part of this milestone, so raw SQL is the current escape hatch inside migrations.
+
+## CLI
+
+The CLI follows an Artisan-style workflow. `make:migration` uses
+`database/migrations` by default, so the first migration can be created before
+the application configuration exists:
+
+```bash
+pnpm aiseki make:migration create_users_table
+```
+
+For `migrate` and `migrate:rollback`, create `aiseki.config.ts` in the application root:
+
+```ts
+import { defineConfig } from "aiseki"
+import { createBetterSqlite3Database } from "aiseki/better-sqlite3"
+
+export default defineConfig({
+  database: () => createBetterSqlite3Database("./database.sqlite"),
+  migrations: "./database/migrations",
+})
+```
+
+Then run the migration commands:
+
+```bash
+pnpm aiseki migrate
+pnpm aiseki migrate:rollback
+```
+
+`make:migration` only creates the file and does not open a database connection. Migration files default-export a `defineMigrate(...)` definition. The CLI currently runs through the repository's package script; publishing a standalone `aiseki` binary is a separate packaging task.
 
 ## Development
 
