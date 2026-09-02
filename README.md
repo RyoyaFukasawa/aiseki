@@ -11,7 +11,10 @@ aiseki                    ORM core and drivers
 aiseki/<driver>            runtime-specific database drivers
 ```
 
-The project is currently in the foundation phase. Models, relations, Schema Builder, Hono integration, and Better Auth integration will be added in later milestones.
+The project is currently in the foundation phase. The current milestone includes
+the runtime-neutral database boundary, Schema Builder, migrations, and the
+migration CLI. Query Builder, Model, Relation, Hono integration, and Better
+Auth integration are planned for later milestones.
 
 ## Runtime-neutral database boundary
 
@@ -42,6 +45,15 @@ interface TransactionalDatabase extends Database {
 }
 ```
 
+`SchemaDatabase` is the migration-facing extension that adds the Schema
+Builder while preserving the raw `Database` contract:
+
+```ts
+interface SchemaDatabase extends Database {
+  schema: Schema
+}
+```
+
 The Node.js SQLite adapter is intentionally separate from the core:
 
 ```ts
@@ -66,9 +78,12 @@ const database = createD1Database(env.DB)
 
 The D1 adapter depends only on the structural shape of the D1 binding, so Aiseki does not require Hono or `@cloudflare/workers-types` at runtime. Other runtimes can provide their own adapter by implementing `Database`.
 
-## Migrations
+## Migrations and Schema Builder
 
-Migrations are TypeScript values with explicit `up` and `down` functions. `migrate()` applies pending migrations in declaration order as one batch. `rollback()` reverts the latest batch in reverse order.
+Migrations are TypeScript values with explicit `up` and `down` functions.
+`migrate()` applies pending migrations in declaration order as one batch.
+`rollback()` reverts the latest batch in reverse order. The migration callback
+receives `database.schema`, which provides the current SQLite Schema Builder:
 
 ```ts
 import { defineMigrate, Migrator } from "aiseki"
@@ -78,12 +93,15 @@ const migrations = [
   defineMigrate({
     name: "001_create_users",
     async up(database) {
-      await database.exec(
-        "create table users (id integer primary key, name text not null)",
-      )
+      await database.schema.createTable("users", (table) => {
+        table.id()
+        table.string("name")
+        table.string("email").unique()
+        table.timestamps()
+      })
     },
     async down(database) {
-      await database.exec("drop table users")
+      await database.schema.dropTable("users")
     },
   }),
 ]
@@ -96,11 +114,32 @@ await migrator.rollback()
 await database.close()
 ```
 
-`Migrator` requires a `TransactionalDatabase`, so the current migration runner works with adapters that provide atomic transactions. The Schema Builder is intentionally not part of this milestone, so raw SQL is the current escape hatch inside migrations.
+The Schema Builder currently supports SQLite table creation and removal with
+common column types, modifiers, defaults, timestamps, and unique indexes. For
+features it does not cover, use the raw SQL escape hatch that remains available
+on the same migration database:
 
-## CLI
+```ts
+await database.exec(
+  "create index users_name_index on users (name)",
+)
+await database.run(
+  "update users set name = ? where id = ?",
+  ["Ada", 1],
+)
+```
 
-The CLI follows an Artisan-style workflow. `make:migration` uses
+`Migrator` requires a `TransactionalDatabase`, so the current migration runner
+works with adapters that provide an atomic transaction and a full read/write
+transaction callback. The SQLite adapter satisfies this contract. D1's batch
+transaction callback is intentionally write-only and does not expose `all()`;
+generic `Migrator` integration for D1 is not supported yet. The D1 adapter can
+still be used directly through its runtime-neutral SQL boundary.
+
+## CLI: config, generate, migrate, and rollback
+
+The CLI follows an Artisan-style workflow. Migration file generation is exposed
+as `make:migration` (there is no separate `generate` command). It uses
 `database/migrations` by default, so the first migration can be created before
 the application configuration exists:
 
@@ -127,7 +166,25 @@ pnpm aiseki migrate
 pnpm aiseki migrate:rollback
 ```
 
-`make:migration` only creates the file and does not open a database connection. Migration files default-export a `defineMigrate(...)` definition. The CLI currently runs through the repository's package script; publishing a standalone `aiseki` binary is a separate packaging task.
+`make:migration` only creates the file and does not open a database connection.
+Generated migration files default-export a `defineMigrate(...)` definition.
+The config file and migration files may import `defineConfig`, `defineMigrate`,
+and the selected driver through the package surface (`aiseki` and, for local
+SQLite, `aiseki/better-sqlite3`).
+
+The package publishes `bin/aiseki.mjs`, so the built CLI can be run directly:
+
+```bash
+node bin/aiseki.mjs migrate
+node bin/aiseki.mjs migrate:rollback
+```
+
+On Node 24, the published binary loads the `.ts` config and migration files
+directly using Node's built-in TypeScript support. The repository's
+`pnpm aiseki` script continues to run the source CLI through `tsx`. A Node
+version without built-in TypeScript support must run the CLI through an
+equivalent TypeScript loader or use compiled `.js`/`.mjs` config and migration
+files; `tsx` remains a development tool and is not a runtime dependency.
 
 ## Development
 
