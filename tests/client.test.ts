@@ -150,6 +150,88 @@ describe("Aiseki DB client", () => {
     expect("state" in DB).toBe(false)
   })
 
+  it("reflects and copies adapter data, accessor, and symbol properties", () => {
+    const capability = Symbol("capability")
+    const database = {
+      label: "primary",
+      backingState: "ready",
+      get state() {
+        return this.backingState
+      },
+      [capability]: "enabled",
+      async exec() {},
+      async run() {},
+      async all() {
+        return []
+      },
+    }
+    const DB = createDB(database)
+    const spread = { ...DB }
+    const assigned = Object.assign({}, DB)
+    const labelDescriptor = Object.getOwnPropertyDescriptor(DB, "label")
+    const stateDescriptor = Object.getOwnPropertyDescriptor(DB, "state")
+    const symbolDescriptor = Object.getOwnPropertyDescriptor(DB, capability)
+
+    expect(Object.keys(DB)).toEqual(expect.arrayContaining([
+      "query",
+      "model",
+      "models",
+      "label",
+      "state",
+    ]))
+    expect(spread.label).toBe("primary")
+    expect(spread.state).toBe("ready")
+    expect(assigned[capability]).toBe("enabled")
+    expect(labelDescriptor).toMatchObject({
+      configurable: true,
+      enumerable: true,
+      value: "primary",
+      writable: true,
+    })
+    expect(stateDescriptor?.get?.()).toBe("ready")
+    expect(symbolDescriptor).toMatchObject({
+      configurable: true,
+      enumerable: true,
+      value: "enabled",
+      writable: true,
+    })
+  })
+
+  it("reflects frozen adapter properties without Proxy invariant errors", () => {
+    const capability = Symbol("frozen capability")
+    const database = Object.freeze({
+      state: "ready",
+      [capability]: "enabled",
+      async exec() {},
+      async run() {},
+      async all() {
+        return []
+      },
+    })
+    const DB = createDB(database)
+    const copy = Object.assign({}, DB)
+
+    expect(Reflect.ownKeys(DB)).toEqual(expect.arrayContaining([
+      "query",
+      "model",
+      "models",
+      "state",
+      "exec",
+      "run",
+      "all",
+      capability,
+    ]))
+    expect(copy.state).toBe("ready")
+    expect(copy[capability]).toBe("enabled")
+    expect(Object.getOwnPropertyDescriptor(DB, "state")).toMatchObject({
+      configurable: true,
+      enumerable: true,
+      value: "ready",
+      writable: false,
+    })
+    expect(Object.getOwnPropertyDescriptor(DB, "exec")?.value).toBe(DB.exec)
+  })
+
   it("wraps a frozen plain-object adapter without Proxy invariant errors", async () => {
     const calls: string[] = []
     const database = Object.freeze({

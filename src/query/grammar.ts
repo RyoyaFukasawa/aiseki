@@ -54,20 +54,31 @@ function quoteIdentifier(identifier: string): string {
 function compileConditions(
   conditions: readonly QueryCondition[],
 ): { sql: string; parameters: readonly SqlParameter[] } {
+  const parameters: SqlParameter[] = []
   const sql = conditions
-    .map(({ column, operator }) => {
+    .map(({ column, operator, value }) => {
       if (!COMPARISON_OPERATORS.has(operator)) {
         throw new Error(`Invalid comparison operator: ${operator}`)
       }
 
+      if (value === null) {
+        if (operator === "=") {
+          return `${quoteIdentifier(column)} is null`
+        }
+
+        if (operator === "!=" || operator === "<>") {
+          return `${quoteIdentifier(column)} is not null`
+        }
+
+        throw new Error(`Comparison operator ${operator} does not support null`)
+      }
+
+      parameters.push(value)
       return `${quoteIdentifier(column)} ${operator} ?`
     })
     .join(" and ")
 
-  return {
-    sql,
-    parameters: conditions.map(({ value }) => value),
-  }
+  return { sql, parameters }
 }
 
 function assertNonNegativeInteger(value: number, name: string): void {

@@ -67,27 +67,31 @@ export function createDB<Adapter extends Database>(
     },
   })
 
+  function getForwardedValue(property: PropertyKey): unknown {
+    const value = Reflect.get(database, property, database)
+
+    if (typeof value !== "function") {
+      return value
+    }
+
+    const existing = boundMethods.get(value)
+
+    if (existing) {
+      return existing
+    }
+
+    const bound = value.bind(database)
+    boundMethods.set(value, bound)
+    return bound
+  }
+
   client = new Proxy(target, {
     get(currentTarget, property) {
       if (Object.prototype.hasOwnProperty.call(methods, property)) {
         return Reflect.get(currentTarget, property, currentTarget)
       }
 
-      const value = Reflect.get(database, property, database)
-
-      if (typeof value !== "function") {
-        return value
-      }
-
-      const existing = boundMethods.get(value)
-
-      if (existing) {
-        return existing
-      }
-
-      const bound = value.bind(database)
-      boundMethods.set(value, bound)
-      return bound
+      return getForwardedValue(property)
     },
     has(currentTarget, property) {
       return Reflect.has(currentTarget, property)
@@ -106,6 +110,48 @@ export function createDB<Adapter extends Database>(
       }
 
       return Reflect.deleteProperty(database, property)
+    },
+    ownKeys(currentTarget) {
+      const keys = Reflect.ownKeys(currentTarget)
+
+      for (const key of Reflect.ownKeys(database)) {
+        if (!keys.includes(key)) {
+          keys.push(key)
+        }
+      }
+
+      return keys
+    },
+    getOwnPropertyDescriptor(currentTarget, property) {
+      const targetDescriptor = Reflect.getOwnPropertyDescriptor(
+        currentTarget,
+        property,
+      )
+
+      if (targetDescriptor) {
+        return targetDescriptor
+      }
+
+      const descriptor = Reflect.getOwnPropertyDescriptor(database, property)
+
+      if (!descriptor) {
+        return undefined
+      }
+
+      if ("value" in descriptor) {
+        return {
+          ...descriptor,
+          configurable: true,
+          value: getForwardedValue(property),
+        }
+      }
+
+      return {
+        configurable: true,
+        enumerable: descriptor.enumerable,
+        get: descriptor.get?.bind(database),
+        set: descriptor.set?.bind(database),
+      }
     },
   }) as AisekiDatabase<Adapter>
 

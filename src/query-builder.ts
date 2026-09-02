@@ -153,13 +153,27 @@ class DefaultQueryBuilder<Row extends object> implements QueryBuilder<Row> {
   async update(
     values: Readonly<Record<string, SqlParameter>>,
   ): Promise<void> {
+    this.#assertWriteModifiers()
     const query = compileUpdate(this.#table, values, this.#conditions)
     await this.#database.run(query.sql, query.parameters)
   }
 
   async delete(): Promise<void> {
+    this.#assertWriteModifiers()
     const query = compileDelete(this.#table, this.#conditions)
     await this.#database.run(query.sql, query.parameters)
+  }
+
+  #assertWriteModifiers(): void {
+    if (
+      this.#orderBy !== undefined
+      || this.#limit !== undefined
+      || this.#offset !== undefined
+    ) {
+      throw new Error(
+        "Write queries do not support orderBy, limit, or offset",
+      )
+    }
   }
 
   #selectQuery(): SelectQuery {

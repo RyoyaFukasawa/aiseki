@@ -73,6 +73,35 @@ describe("class-based model binding", () => {
     expect(user?.emailDomain()).toBe("example.com")
   })
 
+  it("hydrates after emitted fields and a custom constructor", async () => {
+    class InitializedUser extends Model {
+      static readonly table = "users"
+      id!: number
+      active = false
+      readonly constructed: boolean
+
+      constructor() {
+        super({ id: -1, active: false })
+        this.constructed = true
+      }
+
+      isActive(): boolean {
+        return this.active
+      }
+    }
+    const recorded = createDatabase([{ id: 7, active: true }])
+    const BoundUser = createDB(recorded.database).model(InitializedUser)
+
+    const user = await BoundUser.query().first()
+
+    expect(user).toBeInstanceOf(InitializedUser)
+    expect(user).toBeInstanceOf(BoundUser)
+    expect(user?.constructed).toBe(true)
+    expect(user?.id).toBe(7)
+    expect(user?.active).toBe(true)
+    expect(user?.isActive()).toBe(true)
+  })
+
   it("preserves source static methods on the bound model class", () => {
     const BoundUser = createDB(createDatabase([]).database).model(User)
     const typedBoundUser: BoundModel<typeof User> = BoundUser
@@ -80,6 +109,23 @@ describe("class-based model binding", () => {
     expect(typedBoundUser.modelName()).toBe(BoundUser.name)
     expect(BoundUser).not.toBe(User)
     expect(Object.getPrototypeOf(BoundUser)).toBe(User)
+  })
+
+  it("allows source static methods to mutate bound static state", () => {
+    class StatefulUser extends Model {
+      static readonly table = "users"
+      static status = "idle"
+
+      static activate(): void {
+        this.status = "active"
+      }
+    }
+    const BoundUser = createDB(createDatabase([]).database).model(StatefulUser)
+
+    BoundUser.activate()
+
+    expect(BoundUser.status).toBe("active")
+    expect(StatefulUser.status).toBe("idle")
   })
 
   it("adds a static query method only to the request-bound model", async () => {
@@ -102,11 +148,15 @@ describe("class-based model binding", () => {
       { id: 1, email: "one@example.com", active: true },
       { id: 2, email: "two@example.com", active: false },
     ])
-    const query = createDB(recorded.database).model(User).query()
+    const BoundUser = createDB(recorded.database).model(User)
 
-    const users = await query.orderBy("id", "desc").limit(2).offset(1).get()
-    await query.where("id", ">", 0).update({ active: false })
-    await query.delete()
+    const users = await BoundUser.query()
+      .orderBy("id", "desc")
+      .limit(2)
+      .offset(1)
+      .get()
+    await BoundUser.query().where("id", ">", 0).update({ active: false })
+    await BoundUser.query().where("id", ">", 0).delete()
 
     expect(users).toHaveLength(2)
     expect(users.every((user) => user instanceof User)).toBe(true)
@@ -124,6 +174,24 @@ describe("class-based model binding", () => {
         parameters: [0],
       },
     ])
+  })
+
+  it("rejects model updates and deletes after select-only modifiers", async () => {
+    const BoundUser = createDB(createDatabase([]).database).model(User)
+
+    await expect(
+      BoundUser.query()
+        .where("id", 1)
+        .limit(1)
+        .update({ active: false }),
+    ).rejects.toThrow(
+      "Write queries do not support orderBy, limit, or offset",
+    )
+    await expect(
+      BoundUser.query().where("id", 1).orderBy("id").delete(),
+    ).rejects.toThrow(
+      "Write queries do not support orderBy, limit, or offset",
+    )
   })
 
   it("rejects invalid model classes when binding a single model", () => {

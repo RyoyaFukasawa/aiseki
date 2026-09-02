@@ -53,6 +53,52 @@ describe("query grammar", () => {
     })
   })
 
+  it("compiles null equality predicates for selects, updates, and deletes", () => {
+    expect(
+      compileSelect({
+        table: "users",
+        conditions: [
+          { column: "tenant_id", operator: "=", value: 7 },
+          { column: "deleted_at", operator: "=", value: null },
+        ],
+      }),
+    ).toEqual({
+      sql: 'select * from "users" where "tenant_id" = ? and "deleted_at" is null',
+      parameters: [7],
+    })
+
+    expect(
+      compileUpdate(
+        "users",
+        { active: false },
+        [{ column: "deleted_at", operator: "!=", value: null }],
+      ),
+    ).toEqual({
+      sql: 'update "users" set "active" = ? where "deleted_at" is not null',
+      parameters: [false],
+    })
+
+    expect(
+      compileDelete(
+        "users",
+        [{ column: "deleted_at", operator: "<>", value: null }],
+      ),
+    ).toEqual({
+      sql: 'delete from "users" where "deleted_at" is not null',
+      parameters: [],
+    })
+  })
+
+  it.each(["<", "<=", ">", ">=", "like"] as const)(
+    "rejects null with the %s operator",
+    (operator) => {
+      expect(() => compileSelect({
+        table: "users",
+        conditions: [{ column: "deleted_at", operator, value: null }],
+      })).toThrow(`Comparison operator ${operator} does not support null`)
+    },
+  )
+
   it("sorts write columns by stable code-point order", () => {
     expect(compileInsert("users", { alpha: 1, Zed: 2 })).toEqual({
       sql: 'insert into "users" ("Zed", "alpha") values (?, ?)',

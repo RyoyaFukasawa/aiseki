@@ -156,6 +156,11 @@ export function bindModel<Constructor extends AnyModelConstructor>(
     new (...args: any[]): Model
   }
   const BoundModel = class extends SourceModel {
+    constructor(row: object) {
+      super(row)
+      Object.assign(this, row)
+    }
+
     static query(): ModelQuery<Constructor> {
       return new DefaultModelQuery(
         database.query<Record<string, unknown>>(model.table),
@@ -164,7 +169,7 @@ export function bindModel<Constructor extends AnyModelConstructor>(
     }
   }
 
-  return Object.freeze(BoundModel) as BoundModel<Constructor>
+  return BoundModel as BoundModel<Constructor>
 }
 
 export function bindModels<Constructors extends ModelConstructors>(

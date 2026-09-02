@@ -99,6 +99,15 @@ Use `DB.query().select(...)` for partial plain-row projections. Hydrated model
 queries intentionally select complete rows, so `User.query()` does not expose
 `select()` in this milestone.
 
+Null equality uses SQL null semantics: `.where("deleted_at", null)` compiles to
+`IS NULL`, while `!=` and `<>` compile to `IS NOT NULL`. Other comparison
+operators reject `null` instead of producing a predicate that can never match.
+
+`orderBy()`, `limit()`, and `offset()` are read-only modifiers. Calling
+`update()` or `delete()` on a query that contains any of them rejects the write
+instead of silently applying it to more rows. Start a separate query containing
+only the intended `where()` conditions for writes.
+
 Models are classes with a table name and typed fields. Source model classes
 do not contain a database connection, so they can be collected once in an
 explicit registry and safely reused across requests:

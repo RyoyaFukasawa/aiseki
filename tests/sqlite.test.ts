@@ -93,4 +93,35 @@ describe("SQLite database", () => {
 
     await DB.close()
   })
+
+  it("selects, updates, and deletes rows through null predicates", async () => {
+    const DB = createDB(createBetterSqlite3Database(":memory:"))
+
+    await DB.exec(
+      "create table users (id integer primary key, name text, deleted_at text)",
+    )
+    await DB.query("users").insert({ name: "Active", deleted_at: null })
+    await DB.query("users").insert({
+      name: "Deleted",
+      deleted_at: "2026-01-01",
+    })
+
+    await expect(
+      DB.query<{ id: number; name: string; deleted_at: string | null }>("users")
+        .where("deleted_at", null)
+        .get(),
+    ).resolves.toEqual([{ id: 1, name: "Active", deleted_at: null }])
+
+    await DB.query("users")
+      .where("deleted_at", null)
+      .update({ name: "Current" })
+    await DB.query("users").where("deleted_at", "!=", null).delete()
+
+    await expect(
+      DB.query<{ id: number; name: string; deleted_at: string | null }>("users")
+        .get(),
+    ).resolves.toEqual([{ id: 1, name: "Current", deleted_at: null }])
+
+    await DB.close()
+  })
 })

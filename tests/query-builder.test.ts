@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import type { Database } from "../src/database.js"
-import { createQueryBuilder } from "../src/query-builder.js"
+import {
+  createQueryBuilder,
+  type QueryBuilder,
+} from "../src/query-builder.js"
 
 const inertDatabase: Database = {
   async exec() {},
@@ -115,6 +118,69 @@ describe("Query Builder", () => {
       },
     ])
   })
+
+  it.each<{
+    operation: "update" | "delete"
+    modifier: "orderBy" | "limit" | "offset"
+    modify: (builder: QueryBuilder) => QueryBuilder
+  }>([
+    {
+      operation: "update",
+      modifier: "orderBy",
+      modify: (builder) => builder.orderBy("id"),
+    },
+    {
+      operation: "update",
+      modifier: "limit",
+      modify: (builder) => builder.limit(1),
+    },
+    {
+      operation: "update",
+      modifier: "offset",
+      modify: (builder) => builder.offset(1),
+    },
+    {
+      operation: "delete",
+      modifier: "orderBy",
+      modify: (builder) => builder.orderBy("id"),
+    },
+    {
+      operation: "delete",
+      modifier: "limit",
+      modify: (builder) => builder.limit(1),
+    },
+    {
+      operation: "delete",
+      modifier: "offset",
+      modify: (builder) => builder.offset(1),
+    },
+  ])(
+    "rejects $operation after the $modifier select modifier",
+    async ({ operation, modify }) => {
+      const statements: string[] = []
+      const database: Database = {
+        async exec() {},
+        async run(sql) {
+          statements.push(sql)
+        },
+        async all() {
+          return []
+        },
+      }
+      const builder = modify(
+        createQueryBuilder(database, "users").where("id", 1),
+      )
+
+      const write = operation === "update"
+        ? builder.update({ active: false })
+        : builder.delete()
+
+      await expect(write).rejects.toThrow(
+        "Write queries do not support orderBy, limit, or offset",
+      )
+      expect(statements).toEqual([])
+    },
+  )
 
   it("supports explicit comparison operators and select modifiers", () => {
     expect(
