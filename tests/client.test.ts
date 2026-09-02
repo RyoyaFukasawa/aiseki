@@ -65,6 +65,30 @@ describe("Aiseki DB client", () => {
     expect(calls).toEqual(["one", "two", "three"])
   })
 
+  it("wraps a frozen plain-object adapter without Proxy invariant errors", async () => {
+    const calls: string[] = []
+    const database = Object.freeze({
+      async exec(sql: string) {
+        calls.push(`exec:${sql}`)
+      },
+      async run(sql: string) {
+        calls.push(`run:${sql}`)
+      },
+      async all<T extends object>(sql: string) {
+        calls.push(`all:${sql}`)
+        return [{ id: 1 }] as unknown as ReadonlyArray<T>
+      },
+    })
+
+    const DB = createDB(database)
+
+    await DB.exec("one")
+    await DB.run("two")
+    await expect(DB.all<{ id: number }>("three")).resolves.toEqual([{ id: 1 }])
+    expect(calls).toEqual(["exec:one", "run:two", "all:three"])
+    expect(Object.getPrototypeOf(DB)).toBe(Object.getPrototypeOf(database))
+  })
+
   it("preserves concrete receiver-sensitive adapter capabilities", async () => {
     class ConcreteDatabase implements Database {
       readonly #events: string[] = []
@@ -92,6 +116,7 @@ describe("Aiseki DB client", () => {
 
     await DB.exec("one")
     expect(DB.events()).toEqual(["exec:one"])
+    expect(DB).toBeInstanceOf(ConcreteDatabase)
     expect(database).not.toHaveProperty("query")
   })
 })

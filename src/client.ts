@@ -46,14 +46,18 @@ export function createDB<Adapter extends Database>(
     },
   }
   const boundMethods = new WeakMap<Function, Function>()
+  const target = Object.assign(
+    Object.create(Object.getPrototypeOf(database)) as object,
+    methods,
+  )
 
-  client = new Proxy(database, {
-    get(target, property) {
+  client = new Proxy(target, {
+    get(currentTarget, property) {
       if (Object.prototype.hasOwnProperty.call(methods, property)) {
-        return Reflect.get(methods, property, methods)
+        return Reflect.get(currentTarget, property, currentTarget)
       }
 
-      const value = Reflect.get(target, property, target)
+      const value = Reflect.get(database, property, database)
 
       if (typeof value !== "function") {
         return value
@@ -65,13 +69,13 @@ export function createDB<Adapter extends Database>(
         return existing
       }
 
-      const bound = value.bind(target)
+      const bound = value.bind(database)
       boundMethods.set(value, bound)
       return bound
     },
-    has(target, property) {
-      return Object.prototype.hasOwnProperty.call(methods, property)
-        || Reflect.has(target, property)
+    has(currentTarget, property) {
+      return Reflect.has(currentTarget, property)
+        || Reflect.has(database, property)
     },
   }) as AisekiDatabase<Adapter>
 
