@@ -1,6 +1,7 @@
 export type {
   ClosableDatabase,
   Database,
+  RunResult,
   SchemaDatabase,
   SqlParameter,
   TransactionalDatabase,

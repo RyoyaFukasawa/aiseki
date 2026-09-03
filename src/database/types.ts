@@ -7,6 +7,16 @@
 export type SqlParameter = string | number | boolean | null | Uint8Array
 
 /**
+ * SQLの書き込み実行で得られるdriver共通の結果。
+ *
+ * `lastInsertId`はdriverが取得できない場合に`null`になる。
+ */
+export interface RunResult {
+  changes: number
+  lastInsertId: number | null
+}
+
+/**
  * Aisekiのcoreが利用する最小限の非同期SQL境界。
  *
  * database driverがこのinterfaceを実装することで、modelやmigrationの層が
@@ -21,12 +31,16 @@ export interface Database {
   exec(sql: string): Promise<void>
 
   /**
-   * パラメーター付きのSQL文を実行し、行を返さない。
+   * パラメーター付きのSQL文を実行し、書き込み結果を返す。
    *
    * @param sql 実行するSQL。
    * @param parameters `sql`のプレースホルダーにバインドする値。
+   * @returns 変更行数と、取得できる場合は最後に生成されたID。
    */
-  run(sql: string, parameters?: readonly SqlParameter[]): Promise<void>
+  run(
+    sql: string,
+    parameters?: readonly SqlParameter[],
+  ): Promise<RunResult>
 
   /**
    * パラメーター付きのクエリを実行し、結果の行を返す。

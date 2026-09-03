@@ -40,7 +40,12 @@ export function testDatabaseContract(
         await database.exec(
           "create table users (id integer primary key, name text not null)",
         )
-        await database.run("insert into users (name) values (?)", ["Taro"])
+        const result = await database.run(
+          "insert into users (name) values (?)",
+          ["Taro"],
+        )
+
+        expect(result).toEqual({ changes: 1, lastInsertId: 1 })
 
         await expect(database.all("select name from users")).resolves.toEqual([
           { name: "Taro" },

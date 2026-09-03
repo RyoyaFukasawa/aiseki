@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { createDB } from "../../src/database/client.js"
 import { createBetterSqlite3Database } from "../../src/drivers/better-sqlite3/index.js"
+import { Model } from "../../src/model/base.js"
+
+class User extends Model {
+  static readonly table = "users"
+  declare id: number
+  declare name: string
+}
 
 describe("SQLite database", () => {
   it("executes statements on one in-memory connection", async () => {
@@ -74,6 +81,32 @@ describe("SQLite database", () => {
         .first(),
     ).resolves.toEqual({ id: 1, active: 0 })
 
+    await DB.close()
+  })
+
+  it("persists bound model instances through the SQLite driver", async () => {
+    const DB = createDB(createBetterSqlite3Database(":memory:"))
+
+    await DB.schema.createTable("users", (table) => {
+      table.id()
+      table.string("name")
+    })
+
+    const BoundUser = DB.model(User)
+    const user = await BoundUser.create({ name: "Taro" })
+
+    expect(user.id).toBe(1)
+
+    user.name = "Jiro"
+    await user.save()
+
+    await expect(BoundUser.findOrFail(1)).resolves.toMatchObject({
+      id: 1,
+      name: "Jiro",
+    })
+
+    await user.delete()
+    await expect(BoundUser.find(1)).resolves.toBeNull()
     await DB.close()
   })
 

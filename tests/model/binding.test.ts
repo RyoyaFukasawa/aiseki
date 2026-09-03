@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import { createDB } from "../../src/database/client.js"
-import type { Database } from "../../src/database/types.js"
+import type {
+  Database,
+  RunResult,
+} from "../../src/database/types.js"
 import { Model } from "../../src/model/base.js"
 import type {
   BoundModel,
@@ -23,15 +26,22 @@ class User extends Model {
   }
 }
 
-function createDatabase(rows: ReadonlyArray<object>) {
+function createDatabase(rows: ReadonlyArray<Record<string, unknown>>) {
   const statements: Array<{ sql: string; parameters: readonly unknown[] }> = []
   const database: Database = {
     async exec() {},
     async run(sql, parameters = []) {
       statements.push({ sql, parameters })
+      return { changes: 1, lastInsertId: 42 } satisfies RunResult
     },
     async all<T extends object>(sql: string, parameters = []) {
       statements.push({ sql, parameters })
+
+      if (sql.includes('"id" = ?')) {
+        return rows.filter((row) => row.id === parameters[0]) as unknown as
+          ReadonlyArray<T>
+      }
+
       return rows as ReadonlyArray<T>
     },
   }
@@ -174,6 +184,98 @@ describe("class-based model binding", () => {
         parameters: [0],
       },
     ])
+  })
+
+  it("finds models by their primary key and throws when missing", async () => {
+    const recorded = createDatabase([
+      { id: 1, email: "one@example.com", active: true },
+    ])
+    const BoundUser = createDB(recorded.database).model(User)
+
+    const user = await BoundUser.find(1)
+
+    expect(user?.email).toBe("one@example.com")
+    await expect(BoundUser.find(404)).resolves.toBeNull()
+    await expect(BoundUser.findOrFail(404)).rejects.toThrow(
+      'User with id "404" not found',
+    )
+  })
+
+  it("creates a model and assigns the generated primary key", async () => {
+    const recorded = createDatabase([])
+    const BoundUser = createDB(recorded.database).model(User)
+
+    const user = await BoundUser.create({
+      email: "new@example.com",
+      active: true,
+    })
+
+    expect(user).toBeInstanceOf(User)
+    expect(user.id).toBe(42)
+    expect(user.email).toBe("new@example.com")
+    expect(recorded.statements).toEqual([
+      {
+        sql: 'insert into "users" ("active", "email") values (?, ?)',
+        parameters: [true, "new@example.com"],
+      },
+    ])
+  })
+
+  it("saves and deletes a hydrated model instance", async () => {
+    const recorded = createDatabase([
+      { id: 1, email: "one@example.com", active: true },
+    ])
+    const BoundUser = createDB(recorded.database).model(User)
+    const user = await BoundUser.findOrFail(1)
+
+    user.email = "updated@example.com"
+    await user.save()
+    await user.delete()
+
+    expect(recorded.statements).toEqual([
+      {
+        sql: 'select * from "users" where "id" = ? limit ?',
+        parameters: [1, 1],
+      },
+      {
+        sql: 'update "users" set "active" = ?, "email" = ? where "id" = ?',
+        parameters: [true, "updated@example.com", 1],
+      },
+      {
+        sql: 'delete from "users" where "id" = ?',
+        parameters: [1],
+      },
+    ])
+  })
+
+  it("inserts a new bound model when save has no primary key", async () => {
+    const recorded = createDatabase([])
+    const BoundUser = createDB(recorded.database).model(User)
+    const user = new BoundUser({
+      email: "new@example.com",
+      active: true,
+    })
+
+    await user.save()
+
+    expect(user.id).toBe(42)
+    expect(recorded.statements).toEqual([
+      {
+        sql: 'insert into "users" ("active", "email") values (?, ?)',
+        parameters: [true, "new@example.com"],
+      },
+    ])
+  })
+
+  it("rejects persistence operations on unbound model instances", async () => {
+    const user = new User({ id: 1, email: "one@example.com", active: true })
+
+    await expect(user.save()).rejects.toThrow(
+      "This model instance is not bound to a database",
+    )
+    await expect(user.delete()).rejects.toThrow(
+      "This model instance is not bound to a database",
+    )
   })
 
   it("rejects model updates and deletes after select-only modifiers", async () => {

@@ -26,7 +26,9 @@ function createDatabaseWithReservedPrototypeCollision(
 
   return Object.assign(Object.create(prototype) as object, {
     async exec() {},
-    async run() {},
+    async run() {
+      return { changes: 0, lastInsertId: null }
+    },
     async all() {
       return []
     },
@@ -42,6 +44,7 @@ describe("Aiseki DB client", () => {
       },
       async run(sql) {
         calls.push(sql)
+        return { changes: 0, lastInsertId: null }
       },
       async all<T extends object>() {
         return [{ id: 1 }] as unknown as ReadonlyArray<T>
@@ -59,7 +62,9 @@ describe("Aiseki DB client", () => {
   it("does not mutate the underlying adapter", () => {
     const database: Database = {
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all() {
         return []
       },
@@ -92,6 +97,7 @@ describe("Aiseki DB client", () => {
       },
       async run(sql) {
         this.calls.push(sql)
+        return { changes: 0, lastInsertId: null }
       },
       async all<T extends object>(sql: string) {
         this.calls.push(sql)
@@ -121,7 +127,9 @@ describe("Aiseki DB client", () => {
         this.backingState = value ?? "unset"
       },
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all() {
         return []
       },
@@ -138,7 +146,9 @@ describe("Aiseki DB client", () => {
     const database: Database & { state?: string } = {
       state: "initial",
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all() {
         return []
       },
@@ -160,7 +170,9 @@ describe("Aiseki DB client", () => {
       },
       [capability]: "enabled",
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all() {
         return []
       },
@@ -203,7 +215,9 @@ describe("Aiseki DB client", () => {
       state: "ready",
       [capability]: "enabled",
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all() {
         return []
       },
@@ -240,6 +254,7 @@ describe("Aiseki DB client", () => {
       },
       async run(sql: string) {
         calls.push(`run:${sql}`)
+        return { changes: 0, lastInsertId: null }
       },
       async all<T extends object>(sql: string) {
         calls.push(`all:${sql}`)
@@ -266,6 +281,7 @@ describe("Aiseki DB client", () => {
 
       async run(sql: string) {
         this.#events.push(`run:${sql}`)
+        return { changes: 0, lastInsertId: null }
       }
 
       async all<T extends object>(sql: string) {

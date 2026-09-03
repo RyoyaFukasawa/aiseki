@@ -23,7 +23,9 @@ function createRecordingDatabase(rows: ReadonlyArray<object>) {
   const queries: string[] = []
   const database: Database = {
     async exec() {},
-    async run() {},
+    async run() {
+      return { changes: 0, lastInsertId: null }
+    },
     async all<T extends object>(sql: string) {
       queries.push(sql)
       return rows as ReadonlyArray<T>

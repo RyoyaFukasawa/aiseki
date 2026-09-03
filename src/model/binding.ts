@@ -4,8 +4,12 @@ import type { QueryBuilder } from "../query/builder.js"
 import type { ComparisonOperator } from "../query/grammar.js"
 import { validateIdentifier } from "../schema/grammar.js"
 import {
+  attachModelPersistence,
+  getModelAttributes,
   Model,
+  syncModelAttributes,
   type AnyModelConstructor,
+  type ModelPersistence,
   type ModelConstructor,
   type ModelInstance,
 } from "./base.js"
@@ -18,6 +22,11 @@ export type {
 
 export type BoundModel<Constructor extends AnyModelConstructor> = Constructor & {
   query(): ModelQuery<Constructor>
+  find(id: SqlParameter): Promise<ModelInstance<Constructor> | null>
+  findOrFail(id: SqlParameter): Promise<ModelInstance<Constructor>>
+  create(
+    attributes: Readonly<Record<string, SqlParameter>>,
+  ): Promise<ModelInstance<Constructor>>
 }
 
 export interface ModelQuery<Constructor extends AnyModelConstructor> {
@@ -44,6 +53,17 @@ function invalidModelConstructor(key?: string): Error {
   )
 }
 
+function getModelPrimaryKey(model: AnyModelConstructor): string {
+  const primaryKey = Reflect.get(model, "primaryKey")
+
+  if (typeof primaryKey !== "string") {
+    throw invalidModelConstructor()
+  }
+
+  validateIdentifier(primaryKey)
+  return primaryKey
+}
+
 export function assertModelConstructor(
   value: unknown,
   key?: string,
@@ -58,6 +78,7 @@ export function assertModelConstructor(
     }
 
     validateIdentifier(Reflect.get(value, "table") as string)
+    getModelPrimaryKey(value as AnyModelConstructor)
   } catch {
     throw invalidModelConstructor(key)
   }
@@ -137,6 +158,67 @@ class DefaultModelQuery<Constructor extends AnyModelConstructor>
   }
 }
 
+function createModelPersistence(
+  database: AisekiDatabase,
+  model: AnyModelConstructor,
+): ModelPersistence {
+  const primaryKey = getModelPrimaryKey(model)
+
+  return {
+    async save(instance) {
+      const attributes = getModelAttributes(instance)
+      const primaryKeyValue = attributes[primaryKey]
+
+      if (primaryKeyValue === undefined || primaryKeyValue === null) {
+        const values = { ...attributes }
+        delete values[primaryKey]
+
+        const result = await database.query(model.table).insert(values)
+
+        if (result.lastInsertId === null) {
+          throw new Error(
+            `Unable to determine the generated primary key for ${model.name}`,
+          )
+        }
+
+        const nextAttributes = {
+          ...attributes,
+          [primaryKey]: result.lastInsertId,
+        }
+        ;(instance as unknown as Record<string, SqlParameter>)[primaryKey] =
+          result.lastInsertId
+        syncModelAttributes(instance, nextAttributes)
+        return
+      }
+
+      const values = { ...attributes }
+      delete values[primaryKey]
+
+      await database
+        .query(model.table)
+        .where(primaryKey, primaryKeyValue)
+        .update(values)
+      syncModelAttributes(instance, attributes)
+    },
+
+    async delete(instance) {
+      const attributes = getModelAttributes(instance)
+      const primaryKeyValue = attributes[primaryKey]
+
+      if (primaryKeyValue === undefined || primaryKeyValue === null) {
+        throw new Error(
+          `Cannot delete ${model.name} without a ${primaryKey} value`,
+        )
+      }
+
+      await database
+        .query(model.table)
+        .where(primaryKey, primaryKeyValue)
+        .delete()
+    },
+  }
+}
+
 export function bindModel<Constructor extends AnyModelConstructor>(
   database: AisekiDatabase,
   model: Constructor,
@@ -147,10 +229,17 @@ export function bindModel<Constructor extends AnyModelConstructor>(
     readonly table: string
     new (...args: any[]): Model
   }
+  const primaryKey = getModelPrimaryKey(model)
+  const persistence = createModelPersistence(database, model)
   const BoundModel = class extends SourceModel {
     constructor(row: object) {
       super(row)
       Object.assign(this, row)
+      syncModelAttributes(
+        this,
+        row as Readonly<Record<string, SqlParameter>>,
+      )
+      attachModelPersistence(this, persistence)
     }
 
     static query(): ModelQuery<Constructor> {
@@ -158,6 +247,45 @@ export function bindModel<Constructor extends AnyModelConstructor>(
         database.query<Record<string, unknown>>(model.table),
         BoundModel as unknown as Constructor,
       )
+    }
+
+    static async find(
+      id: SqlParameter,
+    ): Promise<ModelInstance<Constructor> | null> {
+      return BoundModel.query().where(primaryKey, id).first()
+    }
+
+    static async findOrFail(
+      id: SqlParameter,
+    ): Promise<ModelInstance<Constructor>> {
+      const instance = await BoundModel.find(id)
+
+      if (instance === null) {
+        throw new Error(
+          `${model.name} with ${primaryKey} "${String(id)}" not found`,
+        )
+      }
+
+      return instance
+    }
+
+    static async create(
+      attributes: Readonly<Record<string, SqlParameter>>,
+    ): Promise<ModelInstance<Constructor>> {
+      const result = await database.query(model.table).insert(attributes)
+      const row = { ...attributes }
+
+      if (!(primaryKey in row)) {
+        if (result.lastInsertId === null) {
+          throw new Error(
+            `Unable to determine the generated primary key for ${model.name}`,
+          )
+        }
+
+        row[primaryKey] = result.lastInsertId
+      }
+
+      return new BoundModel(row) as ModelInstance<Constructor>
     }
   }
 

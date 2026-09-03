@@ -1,4 +1,8 @@
-import type { Database, SqlParameter } from "../database/types.js"
+import type {
+  Database,
+  RunResult,
+  SqlParameter,
+} from "../database/types.js"
 import {
   compileDelete,
   compileInsert,
@@ -27,7 +31,7 @@ export interface QueryBuilder<
   toSQL(): CompiledQuery
   get(): Promise<ReadonlyArray<Row>>
   first(): Promise<Row | null>
-  insert(values: Readonly<Record<string, SqlParameter>>): Promise<void>
+  insert(values: Readonly<Record<string, SqlParameter>>): Promise<RunResult>
   update(values: Readonly<Record<string, SqlParameter>>): Promise<void>
   delete(): Promise<void>
 }
@@ -145,9 +149,9 @@ class DefaultQueryBuilder<Row extends object> implements QueryBuilder<Row> {
 
   async insert(
     values: Readonly<Record<string, SqlParameter>>,
-  ): Promise<void> {
+  ): Promise<RunResult> {
     const query = compileInsert(this.#table, values)
-    await this.#database.run(query.sql, query.parameters)
+    return this.#database.run(query.sql, query.parameters)
   }
 
   async update(

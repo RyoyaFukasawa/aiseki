@@ -23,11 +23,19 @@ Aiseki core does not import Hono, a runtime-specific API, or a concrete database
 ```ts
 interface Database {
   exec(sql: string): Promise<void>
-  run(sql: string, parameters?: readonly SqlParameter[]): Promise<void>
+  run(
+    sql: string,
+    parameters?: readonly SqlParameter[],
+  ): Promise<RunResult>
   all<T extends object = Record<string, unknown>>(
     sql: string,
     parameters?: readonly SqlParameter[],
   ): Promise<ReadonlyArray<T>>
+}
+
+interface RunResult {
+  changes: number
+  lastInsertId: number | null
 }
 ```
 
@@ -195,6 +203,36 @@ app.get("/users", async (c) => {
 uses that request's database, and hydrated rows are real model instances, so
 custom instance methods remain available. The original model classes and
 registry are not mutated.
+
+Bound models also provide the basic persistence lifecycle before relations are
+introduced:
+
+```ts
+const user = await User.findOrFail(1)
+user.email = "new@example.com"
+await user.save()
+
+const created = await User.create({
+  email: "created@example.com",
+  active: true,
+})
+await created.delete()
+```
+
+`id` is the default primary key. A model with another primary key can override
+the static property:
+
+```ts
+export class ApiKey extends Model {
+  static readonly table = "api_keys"
+  static readonly primaryKey = "key_id"
+  declare key_id: number
+}
+```
+
+`create()` and inserting through `save()` use the driver's `lastInsertId` when
+the primary key is omitted. The SQLite and D1 drivers normalize their native
+write results to Aiseki's `RunResult` contract.
 
 Adding a model changes its class and the `models` registry only; the context
 factory and middleware remain unchanged. A global mutable API such as

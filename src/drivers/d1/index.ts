@@ -1,5 +1,6 @@
 import type {
   Database,
+  RunResult,
   SqlParameter,
 } from "../../database/types.js"
 
@@ -13,13 +14,23 @@ export interface D1PreparedStatementLike {
   /** 文のプレースホルダーに値をバインドする。 */
   bind(...parameters: unknown[]): D1PreparedStatementLike
 
-  /** 行を返さずに文を実行する。 */
-  run(): Promise<unknown>
+  /** 文を実行して書き込み結果を返す。 */
+  run(): Promise<D1RunResultLike>
 
   /** 文を実行して結果の行を返す。 */
   all<T = Record<string, unknown>>(): Promise<{
     results?: ReadonlyArray<T>
   }>
+}
+
+/**
+ * D1 prepared statementの書き込み結果のサブセット。
+ */
+export interface D1RunResultLike {
+  meta?: {
+    changes?: number
+    last_row_id?: number
+  }
 }
 
 /**
@@ -185,6 +196,13 @@ function hasBatch(
   return "batch" in handle && typeof handle.batch === "function"
 }
 
+function normalizeRunResult(result: D1RunResultLike): RunResult {
+  return {
+    changes: result.meta?.changes ?? 0,
+    lastInsertId: result.meta?.last_row_id ?? null,
+  }
+}
+
 /**
  * Cloudflare D1 bindingからAisekiのデータベースを作成する。
  *
@@ -211,7 +229,8 @@ export function createD1Database(handle: D1DatabaseLike): Database {
     },
 
     async run(sql, parameters: readonly SqlParameter[] = []) {
-      await prepareStatement(sql, parameters).run()
+      const result = await prepareStatement(sql, parameters).run()
+      return normalizeRunResult(result)
     },
 
     async all<T extends object>(

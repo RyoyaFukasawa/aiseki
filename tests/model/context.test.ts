@@ -7,7 +7,14 @@ function createFakeD1(rows: ReadonlyArray<object>) {
     bind() {
       return statement
     },
-    async run() {},
+    async run() {
+      return {
+        meta: {
+          changes: 0,
+          last_row_id: 0,
+        },
+      }
+    },
     async all<T>() {
       return { results: rows as ReadonlyArray<T> }
     },

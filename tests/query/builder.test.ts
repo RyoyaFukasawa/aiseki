@@ -8,7 +8,9 @@ import {
 
 const inertDatabase: Database = {
   async exec() {},
-  async run() {},
+  async run() {
+    return { changes: 0, lastInsertId: null }
+  },
   async all() {
     return []
   },
@@ -21,6 +23,7 @@ describe("Query Builder", () => {
       async exec() {},
       async run(sql, parameters = []) {
         calls.push({ sql, parameters })
+        return { changes: 0, lastInsertId: null }
       },
       async all<T extends object>(sql: string, parameters = []) {
         calls.push({ sql, parameters })
@@ -49,7 +52,9 @@ describe("Query Builder", () => {
     const queries: string[] = []
     const database: Database = {
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all<T extends object>(sql: string) {
         queries.push(sql)
         return [] as ReadonlyArray<T>
@@ -71,7 +76,9 @@ describe("Query Builder", () => {
     const rows = [{ id: 1 }, { id: 2 }]
     const database: Database = {
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all<T extends object>() {
         return rows as unknown as ReadonlyArray<T>
       },
@@ -91,6 +98,7 @@ describe("Query Builder", () => {
       async exec() {},
       async run(sql, parameters = []) {
         statements.push({ sql, parameters })
+        return { changes: 0, lastInsertId: null }
       },
       async all() {
         return []
@@ -162,6 +170,7 @@ describe("Query Builder", () => {
         async exec() {},
         async run(sql) {
           statements.push(sql)
+          return { changes: 0, lastInsertId: null }
         },
         async all() {
           return []

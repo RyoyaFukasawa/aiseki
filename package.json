@@ -13,7 +13,8 @@
     "prepack": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:examples": "pnpm run build && tsc -p tsconfig.examples.json"
   },
   "exports": {
     ".": {

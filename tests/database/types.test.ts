@@ -14,6 +14,7 @@ describe("Database boundary", () => {
       },
       async run(sql, parameters) {
         calls.push(`${sql}:${parameters?.join(",") ?? ""}`)
+        return { changes: 0, lastInsertId: null }
       },
       async all<T extends object = Record<string, unknown>>(
         _sql: string,
@@ -34,7 +35,9 @@ describe("Database boundary", () => {
     const calls: string[] = []
     const database: ClosableDatabase = {
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all() {
         return []
       },

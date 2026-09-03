@@ -48,7 +48,9 @@ describe("Migrator", () => {
     let transactionCalls = 0
     const database: TransactionalDatabase = {
       async exec() {},
-      async run() {},
+      async run() {
+        return { changes: 0, lastInsertId: null }
+      },
       async all<T extends object>(sql: string) {
         if (sql.includes("coalesce(max(batch)")) {
           return [{ batch: 0 }] as unknown as ReadonlyArray<T>

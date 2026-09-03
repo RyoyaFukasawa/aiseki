@@ -3,6 +3,7 @@ import Sqlite from "better-sqlite3"
 import type {
   ClosableDatabase,
   Database,
+  RunResult,
   SchemaDatabase,
   SqlParameter,
   TransactionalDatabase,
@@ -48,7 +49,14 @@ export function createBetterSqlite3Database(
     },
 
     async run(sql, parameters: readonly SqlParameter[] = []) {
-      handle.prepare(sql).run(...normalizeParameters(parameters))
+      const result = handle
+        .prepare(sql)
+        .run(...normalizeParameters(parameters))
+
+      return {
+        changes: result.changes,
+        lastInsertId: Number(result.lastInsertRowid),
+      } satisfies RunResult
     },
 
     async all<T extends object>(

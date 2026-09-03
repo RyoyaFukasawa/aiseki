@@ -12,6 +12,12 @@ function createFakeD1() {
       },
       async run() {
         events.push(`run:${sql}:${parameters.join(",")}`)
+        return {
+          meta: {
+            changes: 1,
+            last_row_id: 1,
+          },
+        }
       },
       async all<T>() {
         events.push(`all:${sql}:${parameters.join(",")}`)
@@ -39,7 +45,9 @@ describe("D1 database driver", () => {
     const database = createD1Database(fake.database)
 
     await database.exec("create table users (id integer primary key)")
-    await database.run("insert into users (name) values (?)", ["Taro"])
+    await expect(
+      database.run("insert into users (name) values (?)", ["Taro"]),
+    ).resolves.toEqual({ changes: 1, lastInsertId: 1 })
     await expect(
       database.all<{ id: number; name: string }>(
         "select id, name from users where name = ?",
