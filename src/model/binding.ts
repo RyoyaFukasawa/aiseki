@@ -1,6 +1,6 @@
-import type { AisekiDatabase } from "../client.js"
-import type { SqlParameter } from "../database.js"
-import type { QueryBuilder } from "../query-builder.js"
+import type { AisekiDatabase } from "../database/client.js"
+import type { SqlParameter } from "../database/types.js"
+import type { QueryBuilder } from "../query/builder.js"
 import type { ComparisonOperator } from "../query/grammar.js"
 import { validateIdentifier } from "../schema/grammar.js"
 import {
@@ -8,13 +8,13 @@ import {
   type AnyModelConstructor,
   type ModelConstructor,
   type ModelInstance,
-} from "./model.js"
+} from "./base.js"
 
 export type {
   AnyModelConstructor,
   ModelConstructor,
   ModelInstance,
-} from "./model.js"
+} from "./base.js"
 
 export type BoundModel<Constructor extends AnyModelConstructor> = Constructor & {
   query(): ModelQuery<Constructor>

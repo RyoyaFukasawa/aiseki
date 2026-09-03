@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { createDB } from "../src/client.js"
-import type { Database } from "../src/database.js"
+import { createDB } from "../../src/database/client.js"
+import type { Database } from "../../src/database/types.js"
 
 type ReservedMethodName = "query" | "model" | "models"
 

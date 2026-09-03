@@ -1,4 +1,4 @@
-import type { Database } from "./database.js"
+import type { Database } from "../database/types.js"
 import {
   compileCreateTable,
   compileDropTable,
@@ -7,9 +7,9 @@ import {
   type ColumnDefinition,
   type ColumnType,
   type DefaultValue,
-} from "./schema/grammar.js"
+} from "./grammar.js"
 
-export type { DefaultValue } from "./schema/grammar.js"
+export type { DefaultValue } from "./grammar.js"
 
 export interface ColumnBuilder {
   nullable(): this

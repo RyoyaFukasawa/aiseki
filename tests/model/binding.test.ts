@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { createDB } from "../src/client.js"
-import type { Database } from "../src/database.js"
-import { Model } from "../src/model/model.js"
+import { createDB } from "../../src/database/client.js"
+import type { Database } from "../../src/database/types.js"
+import { Model } from "../../src/model/base.js"
 import type {
   BoundModel,
   ModelConstructor,
-} from "../src/model/binding.js"
+} from "../../src/model/binding.js"
 
 class User extends Model {
   static readonly table = "users"

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest"
 
-import type { Database, TransactionalDatabase } from "../src/database.js"
-import { createBetterSqlite3Database } from "../src/drivers/better-sqlite3/index.js"
-import { Migrator } from "../src/migrations.js"
-import { createSchema } from "../src/schema.js"
+import type { Database, TransactionalDatabase } from "../../src/database/types.js"
+import { createBetterSqlite3Database } from "../../src/drivers/better-sqlite3/index.js"
+import { Migrator } from "../../src/migrations/index.js"
+import { createSchema } from "../../src/schema/builder.js"
 
 const databases: Array<ReturnType<typeof createBetterSqlite3Database>> = []
 

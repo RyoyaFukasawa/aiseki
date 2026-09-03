@@ -1,16 +1,16 @@
-import type { Database } from "./database.js"
+import type { Database } from "./types.js"
 import {
   bindModel,
   bindModels,
   type BoundModel,
   type BoundModels,
   type ModelConstructors,
-} from "./model/binding.js"
-import type { AnyModelConstructor } from "./model/model.js"
+} from "../model/binding.js"
+import type { AnyModelConstructor } from "../model/base.js"
 import {
   createQueryBuilder,
   type QueryBuilder,
-} from "./query-builder.js"
+} from "../query/builder.js"
 
 interface AisekiDatabaseMethods {
   query<Row extends object = Record<string, unknown>>(

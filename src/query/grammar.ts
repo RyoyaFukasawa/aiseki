@@ -1,4 +1,4 @@
-import type { SqlParameter } from "../database.js"
+import type { SqlParameter } from "../database/types.js"
 import { validateIdentifier } from "../schema/grammar.js"
 
 export interface CompiledQuery {

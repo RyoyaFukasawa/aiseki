@@ -2,8 +2,8 @@ import type {
   Database,
   SchemaDatabase,
   TransactionalDatabase,
-} from "./database.js"
-import { createSchema } from "./schema.js"
+} from "../database/types.js"
+import { createSchema } from "../schema/builder.js"
 
 const MIGRATIONS_TABLE = "aiseki_migrations"
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { createDB } from "../src/client.js"
-import { createBetterSqlite3Database } from "../src/drivers/better-sqlite3/index.js"
+import { createDB } from "../../src/database/client.js"
+import { createBetterSqlite3Database } from "../../src/drivers/better-sqlite3/index.js"
 
 describe("SQLite database", () => {
   it("executes statements on one in-memory connection", async () => {

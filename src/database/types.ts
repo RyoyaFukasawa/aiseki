@@ -49,7 +49,7 @@ export interface Database {
  * schema対応adapterで利用する。
  */
 export interface SchemaDatabase extends Database {
-  schema: import("./schema.js").Schema
+  schema: import("../schema/builder.js").Schema
 }
 
 /**

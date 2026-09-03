@@ -4,11 +4,11 @@ import { tmpdir } from "node:os"
 
 import { afterEach, describe, expect, it } from "vitest"
 
-import type { Database, TransactionalDatabase } from "../src/database.js"
-import type { AisekiConfig } from "../src/cli/config.js"
-import { runCli } from "../src/cli/index.js"
-import { createBetterSqlite3Database } from "../src/drivers/better-sqlite3/index.js"
-import type { Migration } from "../src/migrations.js"
+import type { Database, TransactionalDatabase } from "../../src/database/types.js"
+import type { AisekiConfig } from "../../src/cli/config.js"
+import { runCli } from "../../src/cli/index.js"
+import { createBetterSqlite3Database } from "../../src/drivers/better-sqlite3/index.js"
+import type { Migration } from "../../src/migrations/index.js"
 
 const temporaryDirectories: string[] = []
 

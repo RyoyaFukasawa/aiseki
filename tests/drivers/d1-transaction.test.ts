@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { createDB } from "../src/client.js"
-import type { TransactionalDatabase } from "../src/database.js"
+import { createDB } from "../../src/database/client.js"
+import type { TransactionalDatabase } from "../../src/database/types.js"
 import {
   createD1Database,
   type D1DatabaseAdapter,
   type D1Transaction,
-} from "../src/drivers/d1/index.js"
+} from "../../src/drivers/d1/index.js"
 
 interface RecordedStatement {
   sql: string

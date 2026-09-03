@@ -3,7 +3,7 @@ import type {
   ClosableDatabase,
   Database,
   SqlParameter,
-} from "../src/database.js"
+} from "../../src/database/types.js"
 
 describe("Database boundary", () => {
   it("does not require runtime-specific lifecycle methods", async () => {
