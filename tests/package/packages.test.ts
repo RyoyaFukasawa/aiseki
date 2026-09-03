@@ -11,31 +11,30 @@ function readPackage(relativePath: string) {
     name?: string
     peerDependencies?: Record<string, string>
     peerDependenciesMeta?: Record<string, { optional?: boolean }>
-    dependencies?: Record<string, string>
   }
 }
 
-describe("workspace packages", () => {
-  it("keeps runtime drivers in one package with optional peer dependencies", () => {
+describe("package layout", () => {
+  it("keeps Drizzle as the only optional runtime integration", () => {
     const root = readPackage("package.json")
 
     expect(root.name).toBe("aiseki")
     expect(root.private).toBeUndefined()
-    expect(root.peerDependencies).toMatchObject({
-      "better-sqlite3": "^13.0.3",
+    expect(root.peerDependencies).toEqual({
+      "drizzle-orm": ">=0.45.2",
     })
-    expect(root.peerDependenciesMeta).toMatchObject({
-      "better-sqlite3": { optional: true },
+    expect(root.peerDependenciesMeta).toEqual({
+      "drizzle-orm": { optional: true },
     })
-    expect(existsSync(resolve(process.cwd(), "core"))).toBe(false)
-    expect(existsSync(resolve(process.cwd(), "better-sqlite3"))).toBe(false)
-    expect(existsSync(resolve(process.cwd(), "d1"))).toBe(false)
-    expect(existsSync(resolve(process.cwd(), "src/adapters"))).toBe(false)
-    expect(existsSync(resolve(process.cwd(), "src/drivers/d1/index.ts"))).toBe(
-      true,
-    )
+    expect(existsSync(resolve(process.cwd(), "src/model/base.ts"))).toBe(true)
     expect(
-      existsSync(resolve(process.cwd(), "src/drivers/better-sqlite3/index.ts")),
+      existsSync(resolve(process.cwd(), "src/adapter/drizzle/index.ts")),
     ).toBe(true)
+    expect(existsSync(resolve(process.cwd(), "src/database"))).toBe(false)
+    expect(existsSync(resolve(process.cwd(), "src/drivers"))).toBe(false)
+    expect(existsSync(resolve(process.cwd(), "src/query"))).toBe(false)
+    expect(existsSync(resolve(process.cwd(), "src/schema"))).toBe(false)
+    expect(existsSync(resolve(process.cwd(), "src/migrations"))).toBe(false)
+    expect(existsSync(resolve(process.cwd(), "src/cli"))).toBe(false)
   })
 })
