@@ -1,11 +1,14 @@
 import type { Database } from "./types.js"
+import { createDatabaseProxy } from "./proxy.js"
 import {
   bindModel,
-  bindModels,
   type BoundModel,
+} from "../model/binding.js"
+import {
+  bindModels,
   type BoundModels,
   type ModelConstructors,
-} from "../model/binding.js"
+} from "../model/registry.js"
 import type { AnyModelConstructor } from "../model/base.js"
 import {
   createQueryBuilder,
@@ -43,117 +46,7 @@ export function createDB<Adapter extends Database>(
       return bindModels(client, constructors)
     },
   }
-  const boundMethods = new WeakMap<Function, Function>()
-  const target = Object.create(Object.getPrototypeOf(database)) as object
-
-  Object.defineProperties(target, {
-    query: {
-      configurable: false,
-      enumerable: true,
-      value: methods.query,
-      writable: false,
-    },
-    model: {
-      configurable: false,
-      enumerable: true,
-      value: methods.model,
-      writable: false,
-    },
-    models: {
-      configurable: false,
-      enumerable: true,
-      value: methods.models,
-      writable: false,
-    },
-  })
-
-  function getForwardedValue(property: PropertyKey): unknown {
-    const value = Reflect.get(database, property, database)
-
-    if (typeof value !== "function") {
-      return value
-    }
-
-    const existing = boundMethods.get(value)
-
-    if (existing) {
-      return existing
-    }
-
-    const bound = value.bind(database)
-    boundMethods.set(value, bound)
-    return bound
-  }
-
-  client = new Proxy(target, {
-    get(currentTarget, property) {
-      if (Object.prototype.hasOwnProperty.call(methods, property)) {
-        return Reflect.get(currentTarget, property, currentTarget)
-      }
-
-      return getForwardedValue(property)
-    },
-    has(currentTarget, property) {
-      return Reflect.has(currentTarget, property)
-        || Reflect.has(database, property)
-    },
-    set(currentTarget, property, value) {
-      if (Object.prototype.hasOwnProperty.call(methods, property)) {
-        return Reflect.set(currentTarget, property, value, currentTarget)
-      }
-
-      return Reflect.set(database, property, value, database)
-    },
-    deleteProperty(currentTarget, property) {
-      if (Object.prototype.hasOwnProperty.call(methods, property)) {
-        return Reflect.deleteProperty(currentTarget, property)
-      }
-
-      return Reflect.deleteProperty(database, property)
-    },
-    ownKeys(currentTarget) {
-      const keys = Reflect.ownKeys(currentTarget)
-
-      for (const key of Reflect.ownKeys(database)) {
-        if (!keys.includes(key)) {
-          keys.push(key)
-        }
-      }
-
-      return keys
-    },
-    getOwnPropertyDescriptor(currentTarget, property) {
-      const targetDescriptor = Reflect.getOwnPropertyDescriptor(
-        currentTarget,
-        property,
-      )
-
-      if (targetDescriptor) {
-        return targetDescriptor
-      }
-
-      const descriptor = Reflect.getOwnPropertyDescriptor(database, property)
-
-      if (!descriptor) {
-        return undefined
-      }
-
-      if ("value" in descriptor) {
-        return {
-          ...descriptor,
-          configurable: true,
-          value: getForwardedValue(property),
-        }
-      }
-
-      return {
-        configurable: true,
-        enumerable: descriptor.enumerable,
-        get: descriptor.get?.bind(database),
-        set: descriptor.set?.bind(database),
-      }
-    },
-  }) as AisekiDatabase<Adapter>
+  client = createDatabaseProxy(database, methods)
 
   return client
 }

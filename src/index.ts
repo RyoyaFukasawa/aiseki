@@ -17,12 +17,14 @@ export { Model } from "./model/base.js"
 export type {
   AnyModelConstructor,
   BoundModel,
-  BoundModels,
   ModelConstructor,
-  ModelConstructors,
   ModelInstance,
   ModelQuery,
 } from "./model/binding.js"
+export type {
+  BoundModels,
+  ModelConstructors,
+} from "./model/registry.js"
 export {
   createSchema,
   type ColumnBuilder,
