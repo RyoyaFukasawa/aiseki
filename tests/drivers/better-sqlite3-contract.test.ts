@@ -1,8 +1,8 @@
-import { createBetterSqlite3Database } from "../src/drivers/better-sqlite3/index.js"
+import { createBetterSqlite3Database } from "../../src/drivers/better-sqlite3/index.js"
 import {
   testDatabaseContract,
   testTransactionalDatabaseContract,
-} from "./contracts/database-contract.js"
+} from "../contracts/database-contract.js"
 
 testDatabaseContract(() => {
   const database = createBetterSqlite3Database(":memory:")

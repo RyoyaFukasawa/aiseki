@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises"
 import { extname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
-import type { Migration } from "../migrations.js"
+import type { Migration } from "../migrations/index.js"
 import type { AisekiConfig } from "./config.js"
 
 export const DEFAULT_MIGRATIONS_DIRECTORY = "database/migrations"

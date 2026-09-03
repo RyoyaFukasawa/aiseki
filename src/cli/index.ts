@@ -7,8 +7,8 @@ import { pathToFileURL } from "node:url"
 import type {
   ClosableDatabase,
   TransactionalDatabase,
-} from "../database.js"
-import { Migrator, type Migration } from "../migrations.js"
+} from "../database/types.js"
+import { Migrator, type Migration } from "../migrations/index.js"
 import { defineConfig, type AisekiConfig } from "./config.js"
 import { createMigrationFile } from "./generator.js"
 import {

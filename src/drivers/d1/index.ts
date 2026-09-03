@@ -1,7 +1,7 @@
 import type {
   Database,
   SqlParameter,
-} from "../../database.js"
+} from "../../database/types.js"
 
 /**
  * AisekiのD1 driverが利用するD1 prepared statementのサブセット。

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 
 import { afterEach, describe, expect, it } from "vitest"
 
-import { loadMigrations } from "../src/cli/loader.js"
+import { loadMigrations } from "../../src/cli/loader.js"
 
 const temporaryDirectories: string[] = []
 

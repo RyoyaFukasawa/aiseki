@@ -78,6 +78,13 @@ describe("published package entrypoints", () => {
     expect(output).toContain("Usage: aiseki <command> [options]")
   })
 
+  it("exports the query factory and Model class from the root entrypoint", async () => {
+    const { createDB, Model } = await import("aiseki")
+
+    expect(createDB).toBeTypeOf("function")
+    expect(Model).toBeTypeOf("function")
+  })
+
   it("resolves entrypoints and the binary from a packed tarball", async () => {
     const temporaryDirectory = await mkdtemp(
       join(tmpdir(), "aiseki-package-smoke-"),
@@ -148,6 +155,8 @@ describe("published package entrypoints", () => {
         'const d1 = await import("aiseki/d1")',
         'const betterSqlite3 = await import.meta.resolve("aiseki/better-sqlite3")',
         'if (typeof core.defineMigrate !== "function") throw new Error("root export failed")',
+        'if (typeof core.createDB !== "function") throw new Error("createDB root export failed")',
+        'if (typeof core.Model !== "function") throw new Error("Model root export failed")',
         'if (typeof d1.createD1Database !== "function") throw new Error("d1 export failed")',
         'if (!betterSqlite3.endsWith("/dist/drivers/better-sqlite3/index.js")) throw new Error("better-sqlite3 export failed")',
       ].join("; ")

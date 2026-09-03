@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import type { TransactionalDatabase } from "../src/database.js"
+import { createDB } from "../../src/database/client.js"
+import type { TransactionalDatabase } from "../../src/database/types.js"
 import {
   createD1Database,
   type D1DatabaseAdapter,
   type D1Transaction,
-} from "../src/drivers/d1/index.js"
+} from "../../src/drivers/d1/index.js"
 
 interface RecordedStatement {
   sql: string
@@ -73,6 +74,24 @@ function createFakeD1(options: { batchError?: Error } = {}) {
 }
 
 describe("D1 database transactions", () => {
+  it("preserves batch transactions after wrapping", async () => {
+    const fake = createFakeD1()
+    const DB = createDB(createD1Database(fake.database))
+
+    await DB.transaction(async (transaction) => {
+      await transaction.run("insert into users (name) values (?)", ["Taro"])
+    })
+
+    expect(fake.batches).toEqual([
+      [
+        {
+          sql: "insert into users (name) values (?)",
+          parameters: ["Taro"],
+        },
+      ],
+    ])
+  })
+
   it("does not expose a queryable transaction callback or TransactionalDatabase", () => {
     function assertTransactionTypes(database: D1DatabaseAdapter) {
       database.transaction(async (transaction) => {

@@ -4,19 +4,39 @@ export type {
   SchemaDatabase,
   SqlParameter,
   TransactionalDatabase,
-} from "./database.js"
+} from "./database/types.js"
+export {
+  createDB,
+  type AisekiDatabase,
+} from "./database/client.js"
+export {
+  createQueryBuilder,
+  type QueryBuilder,
+} from "./query/builder.js"
+export { Model } from "./model/base.js"
+export type {
+  AnyModelConstructor,
+  BoundModel,
+  ModelConstructor,
+  ModelInstance,
+  ModelQuery,
+} from "./model/binding.js"
+export type {
+  BoundModels,
+  ModelConstructors,
+} from "./model/registry.js"
 export {
   createSchema,
   type ColumnBuilder,
   type DefaultValue,
   type Schema,
   type TableBuilder,
-} from "./schema.js"
+} from "./schema/builder.js"
 export {
   defineMigrate,
   Migrator,
   type Migration,
-} from "./migrations.js"
+} from "./migrations/index.js"
 export {
   defineConfig,
   type AisekiConfig,
