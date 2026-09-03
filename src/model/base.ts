@@ -1,93 +1,61 @@
-import type { SqlParameter } from "../database/types.js"
+export class Model<Metadata = unknown> {
+  static readonly table: unknown
+  static readonly primaryKey: unknown = "id"
 
-export interface ModelPersistence {
-  save(model: Model): Promise<void>
-  delete(model: Model): Promise<void>
-}
-
-const modelSnapshots = new WeakMap<Model, Record<string, unknown>>()
-const modelPersistence = new WeakMap<Model, ModelPersistence>()
-
-export class Model {
-  static readonly table: string
-  static readonly primaryKey = "id"
+  /** toObject() / toJSON()の結果から除外する属性名。passwordなどの公開したくない値に使う。 */
+  static readonly hidden: readonly string[] = []
 
   constructor(row: object) {
-    modelSnapshots.set(this, { ...row })
+    modelAttributes.set(this, { ...row })
     Object.assign(this, row)
   }
 
   /**
-   * bound modelのdatabaseへ現在の属性を保存する。
-   *
-   * source modelを直接newした場合はdatabaseがないため、bound modelから
-   * 作成したinstanceでのみ利用できる。
+   * Modelを識別するprimary keyの現在値を返す。
    */
-  async save(): Promise<this> {
-    const persistence = modelPersistence.get(this)
+  getKey(): unknown {
+    const primaryKey = Reflect.get(this.constructor, "primaryKey")
 
-    if (!persistence) {
-      throw new Error("This model instance is not bound to a database")
+    if (typeof primaryKey !== "string") {
+      throw new Error("The Model primaryKey must be a string")
     }
 
-    await persistence.save(this)
-    return this
+    return Reflect.get(this, primaryKey)
   }
 
   /**
-   * bound modelのdatabaseから現在のinstanceを削除する。
+   * モデルの現在の属性を、APIレスポンスなどに渡せるplain objectへ変換する。
+   *
+   * constructorで受け取った属性だけを対象にするため、Modelへ追加した内部状態や
+   * prototype上のmethodが結果へ混ざらない。hiddenに指定した属性は除外する。
    */
-  async delete(): Promise<void> {
-    const persistence = modelPersistence.get(this)
+  toObject(): Record<string, unknown> {
+    const attributes = modelAttributes.get(this)
 
-    if (!persistence) {
-      throw new Error("This model instance is not bound to a database")
+    if (!attributes) {
+      throw new Error("Model attributes are not initialized")
     }
 
-    await persistence.delete(this)
+    const hidden = new Set(
+      Reflect.get(this.constructor, "hidden") as readonly string[],
+    )
+    const object: Record<string, unknown> = {}
+
+    for (const key of Object.keys(attributes)) {
+      if (!hidden.has(key)) {
+        object[key] = Reflect.get(this, key)
+      }
+    }
+
+    return object
+  }
+
+  /**
+   * JSON.stringifyから呼ばれるModelのシリアライズ入口。
+   */
+  toJSON(): Record<string, unknown> {
+    return this.toObject()
   }
 }
 
-export interface ModelConstructor<
-  Instance extends Model = Model,
-> {
-  readonly table: string
-  new (row: object): Instance
-}
-
-export type AnyModelConstructor = ModelConstructor<any>
-
-export type ModelInstance<Constructor extends AnyModelConstructor> =
-  InstanceType<Constructor>
-
-export function attachModelPersistence(
-  model: Model,
-  persistence: ModelPersistence,
-): void {
-  modelPersistence.set(model, persistence)
-}
-
-export function getModelAttributes(
-  model: Model,
-): Record<string, SqlParameter> {
-  const snapshot = modelSnapshots.get(model)
-
-  if (!snapshot) {
-    throw new Error("Model attributes are not initialized")
-  }
-
-  const attributes: Record<string, SqlParameter> = {}
-
-  for (const key of Object.keys(snapshot)) {
-    attributes[key] = (model as unknown as Record<string, SqlParameter>)[key]
-  }
-
-  return attributes
-}
-
-export function syncModelAttributes(
-  model: Model,
-  attributes: Readonly<Record<string, SqlParameter>>,
-): void {
-  modelSnapshots.set(model, { ...attributes })
-}
+const modelAttributes = new WeakMap<Model, Record<string, unknown>>()

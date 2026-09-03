@@ -1,11 +1,9 @@
 import { execFileSync } from "node:child_process"
 import {
-  cp,
   mkdtemp,
   mkdir,
   readdir,
   rm,
-  symlink,
 } from "node:fs/promises"
 import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -20,7 +18,6 @@ function readPackage() {
     exports?: Record<string, Record<string, string> | string>
     files?: string[]
     bin?: Record<string, string>
-    engines?: Record<string, string>
   }
 }
 
@@ -34,7 +31,7 @@ describe("published package entrypoints", () => {
     }
   })
 
-  it("declares runtime-neutral and driver exports with built output", () => {
+  it("declares only the core and Drizzle exports with built output", () => {
     const root = readPackage()
 
     expect(root.exports).toEqual({
@@ -42,84 +39,63 @@ describe("published package entrypoints", () => {
         types: "./dist/index.d.ts",
         import: "./dist/index.js",
       },
-      "./d1": {
-        types: "./dist/drivers/d1/index.d.ts",
-        import: "./dist/drivers/d1/index.js",
-      },
-      "./better-sqlite3": {
-        types: "./dist/drivers/better-sqlite3/index.d.ts",
-        import: "./dist/drivers/better-sqlite3/index.js",
+      "./drizzle": {
+        types: "./dist/adapter/drizzle/index.d.ts",
+        import: "./dist/adapter/drizzle/index.js",
       },
     })
-    expect(root.files).toEqual(["dist", "bin"])
-    expect(root.bin).toEqual({ aiseki: "./bin/aiseki.mjs" })
-    expect(root.engines).toEqual({ node: ">=24" })
+    expect(root.files).toEqual(["dist"])
+    expect(root.bin).toBeUndefined()
 
     for (const file of [
       "dist/index.js",
       "dist/index.d.ts",
-      "dist/drivers/d1/index.js",
-      "dist/drivers/d1/index.d.ts",
-      "dist/drivers/better-sqlite3/index.js",
-      "dist/drivers/better-sqlite3/index.d.ts",
-      "dist/cli/index.js",
-      "bin/aiseki.mjs",
+      "dist/adapter/drizzle/index.js",
+      "dist/adapter/drizzle/index.d.ts",
     ]) {
       expect(existsSync(resolve(process.cwd(), file)), file).toBe(true)
     }
   })
 
-  it("runs the built CLI through the published binary", () => {
-    const output = execFileSync("node", ["bin/aiseki.mjs", "--help"], {
-      cwd: process.cwd(),
-      encoding: "utf8",
-    })
+  it("exports the Model class from the root entrypoint", async () => {
+    const { Model } = await import("aiseki")
 
-    expect(output).toContain("Usage: aiseki <command> [options]")
-  })
-
-  it("exports the query factory and Model class from the root entrypoint", async () => {
-    const { createDB, Model } = await import("aiseki")
-
-    expect(createDB).toBeTypeOf("function")
     expect(Model).toBeTypeOf("function")
   })
 
-  it("resolves entrypoints and the binary from a packed tarball", async () => {
+  it("exports the Drizzle Model binding from the Drizzle entrypoint", async () => {
+    const { createDB, bindModel } = await import("aiseki/drizzle")
+
+    expect(createDB).toBeTypeOf("function")
+    expect(bindModel).toBeTypeOf("function")
+  })
+
+  it("resolves the published entrypoints from a packed tarball", async () => {
     const temporaryDirectory = await mkdtemp(
       join(tmpdir(), "aiseki-package-smoke-"),
     )
-    const sourceDirectory = join(temporaryDirectory, "source")
     const packageDirectory = join(temporaryDirectory, "package")
     const consumerDirectory = join(temporaryDirectory, "consumer")
 
     try {
-      await mkdir(sourceDirectory)
       await mkdir(packageDirectory)
       await mkdir(consumerDirectory)
-      for (const file of [
-        "README.md",
-        "package.json",
-        "tsconfig.build.json",
-        "tsconfig.json",
-      ]) {
-        await cp(resolve(process.cwd(), file), join(sourceDirectory, file))
-      }
-      await cp(resolve(process.cwd(), "bin"), join(sourceDirectory, "bin"), {
-        recursive: true,
-      })
-      await cp(resolve(process.cwd(), "src"), join(sourceDirectory, "src"), {
-        recursive: true,
-      })
-      await symlink(
-        resolve(process.cwd(), "node_modules"),
-        join(sourceDirectory, "node_modules"),
-        "dir",
-      )
       execFileSync(
-        "pnpm",
-        ["pack", "--pack-destination", packageDirectory, "--silent"],
-        { cwd: sourceDirectory, stdio: "ignore" },
+        "npm",
+        [
+          "pack",
+          "--ignore-scripts",
+          "--pack-destination",
+          packageDirectory,
+        ],
+        {
+          cwd: process.cwd(),
+          stdio: "ignore",
+          env: {
+            ...process.env,
+            npm_config_cache: join(temporaryDirectory, "npm-cache"),
+          },
+        },
       )
 
       const [archive] = (await readdir(packageDirectory)).filter((file) =>
@@ -152,26 +128,15 @@ describe("published package entrypoints", () => {
 
       const entrypointCheck = [
         'const core = await import("aiseki")',
-        'const d1 = await import("aiseki/d1")',
-        'const betterSqlite3 = await import.meta.resolve("aiseki/better-sqlite3")',
-        'if (typeof core.defineMigrate !== "function") throw new Error("root export failed")',
-        'if (typeof core.createDB !== "function") throw new Error("createDB root export failed")',
-        'if (typeof core.Model !== "function") throw new Error("Model root export failed")',
-        'if (typeof d1.createD1Database !== "function") throw new Error("d1 export failed")',
-        'if (!betterSqlite3.endsWith("/dist/drivers/better-sqlite3/index.js")) throw new Error("better-sqlite3 export failed")',
+        'const drizzle = await import.meta.resolve("aiseki/drizzle")',
+        'if (typeof core.Model !== "function") throw new Error("Model export failed")',
+        'if (!drizzle.endsWith("/dist/adapter/drizzle/index.js")) throw new Error("drizzle export failed")',
       ].join("; ")
       execFileSync(
         process.execPath,
         ["--input-type=module", "-e", entrypointCheck],
         { cwd: consumerDirectory, stdio: "ignore" },
       )
-
-      const output = execFileSync(
-        join(consumerDirectory, "node_modules/.bin/aiseki"),
-        ["--help"],
-        { encoding: "utf8" },
-      )
-      expect(output).toContain("Usage: aiseki <command> [options]")
     } finally {
       await rm(temporaryDirectory, { recursive: true, force: true })
     }
