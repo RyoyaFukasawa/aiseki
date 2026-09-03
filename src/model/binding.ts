@@ -1,6 +1,6 @@
-import type { AisekiDatabase } from "../client.js"
-import type { SqlParameter } from "../database.js"
-import type { QueryBuilder } from "../query-builder.js"
+import type { AisekiDatabase } from "../database/client.js"
+import type { SqlParameter } from "../database/types.js"
+import type { QueryBuilder } from "../query/builder.js"
 import type { ComparisonOperator } from "../query/grammar.js"
 import { validateIdentifier } from "../schema/grammar.js"
 import {
@@ -8,13 +8,13 @@ import {
   type AnyModelConstructor,
   type ModelConstructor,
   type ModelInstance,
-} from "./model.js"
+} from "./base.js"
 
 export type {
   AnyModelConstructor,
   ModelConstructor,
   ModelInstance,
-} from "./model.js"
+} from "./base.js"
 
 export type BoundModel<Constructor extends AnyModelConstructor> = Constructor & {
   query(): ModelQuery<Constructor>
@@ -36,14 +36,6 @@ export interface ModelQuery<Constructor extends AnyModelConstructor> {
   delete(): Promise<void>
 }
 
-export type ModelConstructors = Readonly<
-  Record<string, AnyModelConstructor>
->
-
-export type BoundModels<Constructors extends ModelConstructors> = {
-  [Key in Extract<keyof Constructors, string>]: BoundModel<Constructors[Key]>
-}
-
 function invalidModelConstructor(key?: string): Error {
   return new Error(
     key === undefined
@@ -52,7 +44,7 @@ function invalidModelConstructor(key?: string): Error {
   )
 }
 
-function assertModelConstructor(
+export function assertModelConstructor(
   value: unknown,
   key?: string,
 ): asserts value is AnyModelConstructor {
@@ -170,28 +162,4 @@ export function bindModel<Constructor extends AnyModelConstructor>(
   }
 
   return BoundModel as BoundModel<Constructor>
-}
-
-export function bindModels<Constructors extends ModelConstructors>(
-  database: AisekiDatabase,
-  constructors: Constructors,
-): BoundModels<Constructors> {
-  const entries = Reflect.ownKeys(constructors).map((key) => {
-    if (typeof key !== "string") {
-      throw new Error("Model registry keys must be strings")
-    }
-
-    const descriptor = Object.getOwnPropertyDescriptor(constructors, key)
-
-    if (!descriptor?.enumerable) {
-      throw new Error(`Model registry key "${key}" must be enumerable`)
-    }
-
-    const model: unknown = Reflect.get(constructors, key)
-    assertModelConstructor(model, key)
-
-    return [key, database.model(model)] as const
-  })
-
-  return Object.fromEntries(entries) as BoundModels<Constructors>
 }

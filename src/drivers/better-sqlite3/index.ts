@@ -6,8 +6,8 @@ import type {
   SchemaDatabase,
   SqlParameter,
   TransactionalDatabase,
-} from "../../database.js"
-import { createSchema } from "../../schema.js"
+} from "../../database/types.js"
+import { createSchema } from "../../schema/builder.js"
 
 type BetterSqlite3Parameter = Exclude<SqlParameter, boolean>
 

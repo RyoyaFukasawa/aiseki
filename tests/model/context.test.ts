@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { createAisekiContext } from "../examples/hono-d1-model-context.js"
+import { createAisekiContext } from "../../examples/hono-d1-model-context.js"
 
 function createFakeD1(rows: ReadonlyArray<object>) {
   const statement = {

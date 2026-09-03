@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import type { Database, TransactionalDatabase } from "../src/database.js"
+import type { Database, TransactionalDatabase } from "../../src/database/types.js"
 import {
   defineMigrate,
   Migrator,
   type Migration,
-} from "../src/migrations.js"
-import { createBetterSqlite3Database } from "../src/drivers/better-sqlite3/index.js"
+} from "../../src/migrations/index.js"
+import { createBetterSqlite3Database } from "../../src/drivers/better-sqlite3/index.js"
 
 const migrations = [
   {

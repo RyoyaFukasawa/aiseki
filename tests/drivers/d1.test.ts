@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { createD1Database } from "../src/drivers/d1/index.js"
+import { createD1Database } from "../../src/drivers/d1/index.js"
 
 function createFakeD1() {
   const events: string[] = []

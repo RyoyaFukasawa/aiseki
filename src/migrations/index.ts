@@ -1,9 +1,8 @@
 import type {
-  Database,
   SchemaDatabase,
   TransactionalDatabase,
-} from "./database.js"
-import { createSchema } from "./schema.js"
+} from "../database/types.js"
+import { createMigrationDatabase } from "./database.js"
 
 const MIGRATIONS_TABLE = "aiseki_migrations"
 
@@ -192,16 +191,5 @@ export class Migrator {
         throw new Error(`Applied migration is not defined: ${record.name}`)
       }
     }
-  }
-}
-
-function createMigrationDatabase(database: Database): SchemaDatabase {
-  const exec = database.exec.bind(database)
-
-  return {
-    exec,
-    run: database.run.bind(database),
-    all: database.all.bind(database),
-    schema: createSchema({ exec }),
   }
 }

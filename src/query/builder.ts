@@ -1,4 +1,4 @@
-import type { Database, SqlParameter } from "./database.js"
+import type { Database, SqlParameter } from "../database/types.js"
 import {
   compileDelete,
   compileInsert,
@@ -8,8 +8,8 @@ import {
   type CompiledQuery,
   type QueryCondition,
   type SelectQuery,
-} from "./query/grammar.js"
-import { validateIdentifier } from "./schema/grammar.js"
+} from "./grammar.js"
+import { validateIdentifier } from "../schema/grammar.js"
 
 export interface QueryBuilder<
   Row extends object = Record<string, unknown>,

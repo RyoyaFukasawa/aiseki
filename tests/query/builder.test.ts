@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import type { Database } from "../src/database.js"
+import type { Database } from "../../src/database/types.js"
 import {
   createQueryBuilder,
   type QueryBuilder,
-} from "../src/query-builder.js"
+} from "../../src/query/builder.js"
 
 const inertDatabase: Database = {
   async exec() {},

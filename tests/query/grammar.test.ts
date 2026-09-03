@@ -5,7 +5,7 @@ import {
   compileInsert,
   compileSelect,
   compileUpdate,
-} from "../src/query/grammar.js"
+} from "../../src/query/grammar.js"
 
 describe("query grammar", () => {
   it("compiles a parameterized select query", () => {

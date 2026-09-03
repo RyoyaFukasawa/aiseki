@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Database, TransactionalDatabase } from "../../src/database.js"
+import type { Database, TransactionalDatabase } from "../../src/database/types.js"
 
 export interface DatabaseContractFixture<
   TDatabase extends Database = Database,

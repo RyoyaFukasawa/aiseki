@@ -13,7 +13,7 @@ import { tmpdir } from "node:os"
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest"
 
-import { createBetterSqlite3Database } from "../src/drivers/better-sqlite3/index.js"
+import { createBetterSqlite3Database } from "../../src/drivers/better-sqlite3/index.js"
 
 const packageRoot = process.cwd()
 const builtCli = resolve(packageRoot, "bin/aiseki.mjs")

@@ -1,4 +1,4 @@
-import type { TransactionalDatabase } from "../database.js"
+import type { TransactionalDatabase } from "../database/types.js"
 
 /**
  * CLIがアプリケーションから受け取るmigration設定。
